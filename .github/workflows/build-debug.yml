@@ -12,7 +12,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2️⃣ 设置 JDK 17（和原作者保持一致）
+      # 2️⃣ 设置 JDK 17
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -24,21 +24,24 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x ./gradlew
 
-      # 4️⃣ 构建 Debug APK
+      # 4️⃣ 清理旧构建并构建 Debug APK
       - name: Build Debug APK
-        run: ./gradlew :app:assembleDebug
+        run: ./gradlew clean :app:assembleDebug
 
-      # 5️⃣ 读取输出文件 metadata（可选）
-      - name: Read Output Metadata
-        id: read_output_metadata
-        uses: juliangruber/read-file-action@v1
-        with:
-          path: ./app/build/outputs/apk/debug/output-metadata.json
-          trim: true
+      # 5️⃣ 列出 debug 目录下的文件
+      - name: List debug APK files
+        run: ls -R app/build/outputs/apk/debug
 
-      # 6️⃣ 上传 Debug APK 到 artifact
+      # 6️⃣ 打印 APK 绝对路径
+      - name: Print debug APK absolute path
+        run: |
+          for f in app/build/outputs/apk/debug/*.apk; do
+            echo "Debug APK path: $(realpath "$f")"
+          done
+
+      # 7️⃣ 上传 Debug APK 到 artifact
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
         with:
           name: tieba-lite-debug-apk
-          path: ./app/build/outputs/apk/debug/app-debug.apk
+          path: app/build/outputs/apk/debug/*.apk
