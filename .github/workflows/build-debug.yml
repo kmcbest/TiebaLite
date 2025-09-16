@@ -1,0 +1,44 @@
+name: Build TiebaLite Debug APK
+
+on:
+  workflow_dispatch:  # 手动触发
+
+jobs:
+  build-debug:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1️⃣ Checkout 仓库
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2️⃣ 设置 JDK 17（和原作者保持一致）
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: "17"
+          distribution: "zulu"
+          cache: gradle
+
+      # 3️⃣ 赋予 gradlew 执行权限
+      - name: Grant execute permission for gradlew
+        run: chmod +x ./gradlew
+
+      # 4️⃣ 构建 Debug APK
+      - name: Build Debug APK
+        run: ./gradlew :app:assembleDebug
+
+      # 5️⃣ 读取输出文件 metadata（可选）
+      - name: Read Output Metadata
+        id: read_output_metadata
+        uses: juliangruber/read-file-action@v1
+        with:
+          path: ./app/build/outputs/apk/debug/output-metadata.json
+          trim: true
+
+      # 6️⃣ 上传 Debug APK 到 artifact
+      - name: Upload Debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: tieba-lite-debug-apk
+          path: ./app/build/outputs/apk/debug/app-debug.apk
