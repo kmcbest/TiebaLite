@@ -167,17 +167,27 @@ class ReplyViewModel @Inject constructor() :
         }
 
         private fun ReplyUiIntent.UploadImages.producePartialChange(): Flow<ReplyPartialChange.UploadImages> {
+            val createdTempFiles = mutableListOf<java.io.File>()
             val resolvedPaths = imageUris.mapNotNull { uriString ->
-                val uri = Uri.parse(uriString)
-                var path = FileUtil.getRealPathFromUri(App.INSTANCE, uri)
-                if (path.isEmpty() || !java.io.File(path).exists()) {
-                    val tempFile = FileUtil.getTempFileFromUri(App.INSTANCE, uri)
-                    path = tempFile?.absolutePath.orEmpty()
+                val uri = if (uriString.startsWith("/")) {
+                    Uri.fromFile(java.io.File(uriString))
+                } else {
+                    Uri.parse(uriString)
                 }
-                if (path.isEmpty()) {
-                    Log.e("ReplyViewModel", "Failed to resolve image URI to file path: $uriString")
+                val tempFile = FileUtil.getTempFileFromUri(App.INSTANCE, uri)
+                if (tempFile != null && tempFile.length() > 0) {
+                    createdTempFiles.add(tempFile)
+                    tempFile.absolutePath
+                } else {
+                    var path = FileUtil.getRealPathFromUri(App.INSTANCE, uri)
+                    if (path.isEmpty() && uriString.startsWith("/")) {
+                        path = uriString
+                    }
+                    if (path.isEmpty()) {
+                        Log.e("ReplyViewModel", "Failed to resolve image URI to file path: $uriString")
+                    }
+                    path.takeIf { it.isNotEmpty() }
                 }
-                path.takeIf { it.isNotEmpty() }
             }
 
             if (resolvedPaths.size != imageUris.size) {
@@ -190,6 +200,11 @@ class ReplyViewModel @Inject constructor() :
                     ReplyPartialChange.UploadImages.Success(it)
                 }
                 .onStart { emit(ReplyPartialChange.UploadImages.Start) }
+                .onCompletion {
+                    createdTempFiles.forEach { tempFile ->
+                        runCatching { tempFile.delete() }
+                    }
+                }
                 .catch {
                     Log.e("ReplyViewModel", "Upload images failed", it)
                     it.printStackTrace()

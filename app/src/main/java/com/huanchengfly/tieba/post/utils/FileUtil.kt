@@ -150,10 +150,19 @@ object FileUtil {
     fun getTempFileFromUri(context: Context, contentUri: Uri?): File? {
         if (contentUri == null) return null
         return try {
-            val inputStream = context.contentResolver.openInputStream(contentUri) ?: return null
+            val inputStream = when {
+                contentUri.scheme == "file" || contentUri.path?.startsWith("/storage/") == true -> {
+                    val file = File(contentUri.path ?: "")
+                    if (file.exists() && file.canRead()) FileInputStream(file) else context.contentResolver.openInputStream(contentUri)
+                }
+                else -> context.contentResolver.openInputStream(contentUri)
+            } ?: return null
+
             val tempFile = File.createTempFile("selected_img_", ".tmp", context.cacheDir)
             tempFile.outputStream().use { output ->
-                inputStream.copyTo(output)
+                inputStream.use { input ->
+                    input.copyTo(output)
+                }
             }
             tempFile
         } catch (e: Exception) {
