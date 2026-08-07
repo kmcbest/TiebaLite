@@ -11,7 +11,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
-import androidx.hilt.navigation.HiltViewModelFactory
+import androidx.hilt.navigation.compose.hiltViewModel as androidxHiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ViewModel
@@ -124,23 +124,11 @@ inline fun <reified VM : ViewModel> hiltViewModel(
     },
     key: String? = null,
 ): VM {
-    val factory = createHiltViewModelFactory(viewModelStoreOwner)
-    return viewModel(viewModelStoreOwner, key = key, factory = factory)
-}
-
-@Composable
-@PublishedApi
-internal fun createHiltViewModelFactory(
-    viewModelStoreOwner: ViewModelStoreOwner,
-): ViewModelProvider.Factory? = if (viewModelStoreOwner is NavBackStackEntry) {
-    HiltViewModelFactory(
-        context = LocalContext.current,
-        navBackStackEntry = viewModelStoreOwner
-    )
-} else {
-    // Use the default factory provided by the ViewModelStoreOwner
-    // and assume it is an @AndroidEntryPoint annotated fragment or activity
-    null
+    return if (viewModelStoreOwner is NavBackStackEntry) {
+        androidxHiltViewModel<VM>(viewModelStoreOwner, key)
+    } else {
+        viewModel(viewModelStoreOwner, key = key)
+    }
 }
 
 @Composable
@@ -180,14 +168,12 @@ inline fun <INTENT : UiIntent, reified VM : BaseViewModel<INTENT, *, *, *>> page
 ): VM {
     return pageViewModel<VM>(key = key).apply {
         if (initialIntent.isNotEmpty()) {
-            LaunchedEffect(key1 = initialized) {
-                if (!initialized) {
-                    initialized = true
-                    initialIntent.asFlow()
-                        .onEach(this@apply::send)
-                        .flowOn(Dispatchers.IO)
-                        .launchIn(viewModelScope)
-                }
+            if (!initialized) {
+                initialized = true
+                initialIntent.asFlow()
+                    .onEach(this@apply::send)
+                    .flowOn(Dispatchers.IO)
+                    .launchIn(viewModelScope)
             }
         }
     }

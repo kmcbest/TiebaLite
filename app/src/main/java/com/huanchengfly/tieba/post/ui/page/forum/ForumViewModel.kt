@@ -5,6 +5,7 @@ import com.huanchengfly.tieba.post.api.TiebaApi
 import com.huanchengfly.tieba.post.api.models.CommonResponse
 import com.huanchengfly.tieba.post.api.models.LikeForumResultBean
 import com.huanchengfly.tieba.post.api.models.protos.frsPage.ForumInfo
+import com.huanchengfly.tieba.post.api.models.protos.frsPage.NavTabInfo
 import com.huanchengfly.tieba.post.api.retrofit.exception.getErrorCode
 import com.huanchengfly.tieba.post.api.retrofit.exception.getErrorMessage
 import com.huanchengfly.tieba.post.arch.BaseViewModel
@@ -87,7 +88,8 @@ class ForumViewModel @Inject constructor() :
                 .map {
                     if (it.data_?.forum != null) ForumPartialChange.Load.Success(
                         it.data_.forum,
-                        it.data_.anti?.tbs
+                        it.data_.anti?.tbs,
+                        it.data_.nav_tab_info
                     )
                     else ForumPartialChange.Load.Failure(NullPointerException("未知错误"))
                 }
@@ -175,7 +177,8 @@ sealed interface ForumPartialChange : PartialChange<ForumUiState> {
                 isLoading = true,
                 isError = false,
                 forum = forum.wrapImmutable(),
-                tbs = tbs
+                tbs = tbs,
+                navTabInfo = navTabInfo
             )
 
             is Failure -> oldState.copy(isLoading = false, isError = true)
@@ -185,7 +188,8 @@ sealed interface ForumPartialChange : PartialChange<ForumUiState> {
 
         data class Success(
             val forum: ForumInfo,
-            val tbs: String?
+            val tbs: String?,
+            val navTabInfo: NavTabInfo? = null,
         ) : Load()
 
         data class Failure(
@@ -276,7 +280,8 @@ data class ForumUiState(
     val isError: Boolean = false,
     val forum: ImmutableHolder<ForumInfo>? = null,
     val tbs: String? = null,
-    val showForumHeader: Boolean = true
+    val showForumHeader: Boolean = true,
+    val navTabInfo: NavTabInfo? = null,
 ) : UiState
 
 sealed interface ForumUiEvent : UiEvent {

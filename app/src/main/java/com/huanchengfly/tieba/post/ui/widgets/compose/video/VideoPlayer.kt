@@ -2,6 +2,7 @@ package com.huanchengfly.tieba.post.ui.widgets.compose.video
 
 import android.util.Log
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -25,7 +26,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Fullscreen
 import androidx.compose.material.icons.rounded.FullscreenExit
 import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.ripple.rememberRipple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -170,7 +170,7 @@ fun VideoPlayer(
                     if (thumbnailUrl != null) {
                         AsyncImage(
                             imageUri = thumbnailUrl,
-                            contentDescription = null,
+                            contentDescription = stringResource(id = R.string.desc_video),
                             modifier = Modifier.fillMaxSize(),
                             contentScale = ContentScale.Crop
                         )
@@ -278,7 +278,7 @@ private fun FullScreenButton() {
         modifier = Modifier
             .padding(8.dp)
             .clickable(
-                indication = rememberRipple(bounded = false),
+                indication = LocalIndication.current,
                 interactionSource = remember { MutableInteractionSource() }
             ) {
                 videoPlayerController.toggleFullScreen()

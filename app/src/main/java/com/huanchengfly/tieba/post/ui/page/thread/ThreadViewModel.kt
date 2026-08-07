@@ -14,6 +14,7 @@ import com.huanchengfly.tieba.post.api.models.protos.SimpleForum
 import com.huanchengfly.tieba.post.api.models.protos.SubPostList
 import com.huanchengfly.tieba.post.api.models.protos.ThreadInfo
 import com.huanchengfly.tieba.post.api.models.protos.User
+import com.huanchengfly.tieba.post.api.models.protos.addPollPost.AddPollPostReponse
 import com.huanchengfly.tieba.post.api.models.protos.contentRenders
 import com.huanchengfly.tieba.post.api.models.protos.pbPage.PbPageResponse
 import com.huanchengfly.tieba.post.api.models.protos.renders
@@ -133,6 +134,8 @@ class ThreadViewModel @Inject constructor() :
                 intentFlow.filterIsInstance<ThreadUiIntent.RemoveFavorite>()
                     .flatMapConcat { it.producePartialChange() },
                 intentFlow.filterIsInstance<ThreadUiIntent.AgreeThread>()
+                    .flatMapConcat { it.producePartialChange() },
+                intentFlow.filterIsInstance<ThreadUiIntent.PollThread>()
                     .flatMapConcat { it.producePartialChange() },
                 intentFlow.filterIsInstance<ThreadUiIntent.AgreePost>()
                     .flatMapConcat { it.producePartialChange() },
@@ -430,6 +433,28 @@ class ThreadViewModel @Inject constructor() :
                     )
                 }
 
+        fun ThreadUiIntent.PollThread.producePartialChange(): Flow<ThreadPartialChange.PollThread> =
+            TiebaApi.getInstance()
+                .addPollPostProtobuf(
+                    forumId,
+                    threadId,
+                    options
+                )
+                .map<AddPollPostReponse, ThreadPartialChange.PollThread> {
+                    ThreadPartialChange.PollThread.Success(
+                        true
+                    )
+                }
+                .catch {
+                    emit(
+                        ThreadPartialChange.PollThread.Failure(
+                            false,
+                            it.getErrorCode(),
+                            it.getErrorMessage()
+                        )
+                    )
+                }
+
         fun ThreadUiIntent.AgreePost.producePartialChange(): Flow<ThreadPartialChange.AgreePost> =
             TiebaApi.getInstance()
                 .opAgreeFlow(
@@ -578,6 +603,12 @@ sealed interface ThreadUiIntent : UiIntent {
         val threadId: Long,
         val postId: Long,
         val agree: Boolean
+    ) : ThreadUiIntent
+
+    data class PollThread(
+        val forumId: Long?,
+        val threadId: Long,
+        val options: String,
     ) : ThreadUiIntent
 
     data class AgreePost(
@@ -1084,6 +1115,35 @@ sealed interface ThreadPartialChange : PartialChange<ThreadUiState> {
             val errorCode: Int,
             val errorMessage: String
         ) : AgreeThread()
+    }
+
+    sealed class PollThread : ThreadPartialChange {
+        override fun reduce(oldState: ThreadUiState): ThreadUiState {
+            return when (this) {
+
+                is Success -> oldState.copy(
+                    threadInfo = oldState.threadInfo?.getImmutable {
+                        this.copy(
+                            poll_info = this.poll_info?.copy(
+                                is_polled = if (isPolled) 1 else 0
+                            )
+                        )
+                    }
+                )
+
+                is Failure -> oldState
+            }
+        }
+
+        data class Success(
+            val isPolled: Boolean
+        ) : PollThread()
+
+        data class Failure(
+            val isPolled: Boolean,
+            val errorCode: Int,
+            val errorMessage: String
+        ) : PollThread()
     }
 
     sealed class AgreePost : ThreadPartialChange {

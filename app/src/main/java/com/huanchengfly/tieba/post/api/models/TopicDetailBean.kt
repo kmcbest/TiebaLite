@@ -119,6 +119,7 @@ data class ThreadInfoBean(
     val id: Long,
     @SerialName("feed_id")
     val feedId: Long,
+    val avatar: String,
     val title: String? = "",
     @SerialName("tid")
     val threadId: Long,
@@ -170,10 +171,10 @@ data class Agree(
 
 @Serializable
 data class Author(
-    val name: String,
+    val name: String?,
     val id: Long,
     @SerialName("show_nickname")
-    val showNickName: String ,
+    val showNickName: String,
     @SerialName("name_show")
     val nameShow: String,
     val portrait: String,

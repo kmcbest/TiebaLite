@@ -14,8 +14,11 @@ import com.huanchengfly.tieba.post.arch.UiIntent
 import com.huanchengfly.tieba.post.arch.UiState
 import com.huanchengfly.tieba.post.models.database.History
 import com.huanchengfly.tieba.post.models.database.TopForum
+import com.huanchengfly.tieba.post.App
 import com.huanchengfly.tieba.post.utils.AccountUtil
+import com.huanchengfly.tieba.post.utils.DatabaseUtil
 import com.huanchengfly.tieba.post.utils.HistoryUtil
+import com.huanchengfly.tieba.post.utils.FollowedForumsCache
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
@@ -32,7 +35,6 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.zip
-import org.litepal.LitePal
 
 @Stable
 class HomeViewModel : BaseViewModel<HomeUiIntent, HomePartialChange, HomeUiState, HomeUiEvent>() {
@@ -70,28 +72,34 @@ class HomeViewModel : BaseViewModel<HomeUiIntent, HomePartialChange, HomeUiState
 
         @Suppress("USELESS_CAST")
         private fun produceRefreshPartialChangeFlow(): Flow<HomePartialChange.Refresh> =
-            HistoryUtil.getFlow(HistoryUtil.TYPE_FORUM, 0)
-                .zip(
-                    TiebaApi.getInstance().forumRecommendNewFlow()
-                ) { historyForums, forumRecommend ->
-                    val forums = forumRecommend.data_?.like_forum?.map {
-                        HomeUiState.Forum(
-                            it.avatar,
-                            it.forum_id.toString(),
-                            it.forum_name,
-                            it.is_sign == 1,
-                            it.level_id.toString()
-                        )
-                    } ?: emptyList()
-                    val topForums = mutableListOf<HomeUiState.Forum>()
-                    val topForumsDB = LitePal.findAll(TopForum::class.java).map { it.forumId }
-                    topForums.addAll(forums.filter { topForumsDB.contains(it.forumId) })
-                    HomePartialChange.Refresh.Success(
-                        forums,
-                        topForums,
-                        historyForums
-                    ) as HomePartialChange.Refresh
+            HistoryUtil.getFlow(HistoryUtil.TYPE_FORUM, 0).zip(
+                TiebaApi.getInstance().allForumGuideFlow()
+            ) { historyForums, forumGuideBean ->
+                val allLikeForums = forumGuideBean.likeForum
+
+                // 转换 UI 实体
+                val forums = allLikeForums.map {
+                    HomeUiState.Forum(
+                        it.avatar,
+                        it.forumId.toString(),
+                        it.forumName,
+                        it.isSign == 1,
+                        it.levelId.toString(),
+                        it.hotNum
+                    )
                 }
+
+                // 全局缓存更新
+                FollowedForumsCache.updateAll(allLikeForums)
+
+                val topForumsDB = DatabaseUtil.getTopForums().map { it.forumId }.toSet()
+                val topForums = forums.filter { it.forumId in topForumsDB }
+                HomePartialChange.Refresh.Success(
+                    forums,
+                    topForums,
+                    historyForums
+                ) as HomePartialChange.Refresh
+            }
                 .onStart { emit(HomePartialChange.Refresh.Start) }
                 .catch { emit(HomePartialChange.Refresh.Failure(it)) }
 
@@ -102,24 +110,16 @@ class HomeViewModel : BaseViewModel<HomeUiIntent, HomePartialChange, HomeUiState
                 .catch { emit(HomePartialChange.RefreshHistory.Failure(it)) }
 
         private fun HomeUiIntent.TopForums.Delete.toPartialChangeFlow() =
-            flow {
-                val deletedRows = LitePal.deleteAll(TopForum::class.java, "forumId = ?", forumId)
-                if (deletedRows > 0) {
-                    emit(HomePartialChange.TopForums.Delete.Success(forumId))
-                } else {
-                    emit(HomePartialChange.TopForums.Delete.Failure("forum $forumId is not top!"))
-                }
+            flow<HomePartialChange.TopForums.Delete> {
+                DatabaseUtil.deleteTopForum(forumId)
+                emit(HomePartialChange.TopForums.Delete.Success(forumId))
             }.flowOn(Dispatchers.IO)
                 .catch { emit(HomePartialChange.TopForums.Delete.Failure(it.getErrorMessage())) }
 
         private fun HomeUiIntent.TopForums.Add.toPartialChangeFlow() =
-            flow {
-                val success = TopForum(forum.forumId).saveOrUpdate("forumId = ?", forum.forumId)
-                if (success) {
-                    emit(HomePartialChange.TopForums.Add.Success(forum))
-                } else {
-                    emit(HomePartialChange.TopForums.Add.Failure("未知错误"))
-                }
+            flow<HomePartialChange.TopForums.Add> {
+                DatabaseUtil.addTopForum(forum.forumId)
+                emit(HomePartialChange.TopForums.Add.Success(forum))
             }.flowOn(Dispatchers.IO)
                 .catch { emit(HomePartialChange.TopForums.Add.Failure(it.getErrorMessage())) }
 
@@ -178,13 +178,14 @@ sealed interface HomePartialChange : PartialChange<HomeUiState> {
             when (this) {
                 is Success -> oldState.copy(
                     isLoading = false,
+                    hasLoaded = true,
                     forums = forums.toImmutableList(),
                     topForums = topForums.toImmutableList(),
                     historyForums = historyForums.toImmutableList(),
                     error = null
                 )
 
-                is Failure -> oldState.copy(isLoading = false, error = error)
+                is Failure -> oldState.copy(isLoading = false, hasLoaded = true, error = error)
                 Start -> oldState.copy(isLoading = true)
             }
 
@@ -264,7 +265,8 @@ sealed interface HomePartialChange : PartialChange<HomeUiState> {
 
 @Immutable
 data class HomeUiState(
-    val isLoading: Boolean = true,
+    val isLoading: Boolean = false,
+    val hasLoaded: Boolean = false,
     val forums: ImmutableList<Forum> = persistentListOf(),
     val topForums: ImmutableList<Forum> = persistentListOf(),
     val historyForums: ImmutableList<History> = persistentListOf(),
@@ -278,6 +280,7 @@ data class HomeUiState(
         val forumName: String,
         val isSign: Boolean,
         val levelId: String,
+        val hotNum: Int,
     )
 }
 

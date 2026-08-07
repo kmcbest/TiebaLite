@@ -99,11 +99,6 @@ public class MenuDialogFragment extends BaseBottomSheetDialogFragment implements
     }
 
     @Override
-    protected int getLayoutId() {
-        return R.layout.fragment_menu_dialog;
-    }
-
-    @Override
     public boolean onNavigationItemSelected(@NonNull MenuItem item) {
         if (onNavigationItemSelectedListener != null) {
             close();

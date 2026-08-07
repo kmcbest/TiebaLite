@@ -4,7 +4,10 @@ import com.huanchengfly.tieba.post.api.ForumSortType
 import com.huanchengfly.tieba.post.api.SearchThreadFilter
 import com.huanchengfly.tieba.post.api.SearchThreadOrder
 import com.huanchengfly.tieba.post.api.models.*
+import com.huanchengfly.tieba.post.api.models.protos.GeneralTabList.GeneralTabListResponse
 import com.huanchengfly.tieba.post.api.models.protos.addPost.AddPostResponse
+import com.huanchengfly.tieba.post.api.models.protos.addPollPost.AddPollPostReponse
+import com.huanchengfly.tieba.post.api.models.protos.forumGuide.ForumGuideResponse
 import com.huanchengfly.tieba.post.api.models.protos.forumRecommend.ForumRecommendResponse
 import com.huanchengfly.tieba.post.api.models.protos.forumRuleDetail.ForumRuleDetailResponse
 import com.huanchengfly.tieba.post.api.models.protos.frsPage.FrsPageResponse
@@ -147,6 +150,8 @@ interface ITiebaApi {
      * 关注吧列表
      *
      * **需登录**
+     *
+     * **返回列表限制200个吧**
      */
     fun forumRecommend(): Call<ForumRecommend>
 
@@ -154,6 +159,8 @@ interface ITiebaApi {
      * 关注吧列表
      *
      * **需登录**
+     *
+     * **返回列表限制200个吧**
      */
     fun forumRecommendAsync(): Deferred<ApiResult<ForumRecommend>>
 
@@ -161,6 +168,8 @@ interface ITiebaApi {
      * 关注吧列表
      *
      * **需登录**
+     *
+     * **返回列表限制200个吧**
      */
     fun forumRecommendFlow(): Flow<ForumRecommend>
 
@@ -873,6 +882,28 @@ interface ITiebaApi {
         tbs: String
     ): Flow<CommonResponse>
 
+    /**
+     * 关注列表（客户端接口）
+     *
+     * **需登录**
+     *
+     * @param page 分页页码
+     * @param uid 用户 uid，留空表示当前登录用户
+     */
+    fun followListFlow(
+        page: Int = 1,
+        uid: Long? = null,
+    ): Flow<FollowListBean>
+
+    /**
+     * 获取用户所有关注（客户端接口，自动翻页聚合）
+     *
+     * **需登录**
+     *
+     * @param uid 用户 uid，留空表示当前登录用户
+     */
+    fun getAllFollowFlow(uid: Long? = null): Flow<FollowListBean>
+
     fun hotMessageList(): Call<HotMessageListBean>
 
     /**
@@ -1334,11 +1365,27 @@ interface ITiebaApi {
      *
      * **需登录**
      *
+     * **返回列表限制200个吧**
+     *
      * @param sortType 排序（0=更新排序 1=等级排序）
      */
     fun forumRecommendNewFlow(
         sortType: Int = 1
     ): Flow<ForumRecommendResponse>
+
+    /**
+     * 关注吧列表_V12版本
+     *
+     * **需登录**
+     *
+     * **返回列表限制200个吧**
+     *
+     * @param sortType 排序（0=更新排序 1=等级排序）
+     */
+    fun forumGuideNewFlow(
+        sortType: Int = 2
+    ): Flow<ForumGuideResponse>
+
 
     /**
      * 吧页面
@@ -1372,6 +1419,22 @@ interface ITiebaApi {
         sortType: Int,
         threadIds: String = "",
     ): Flow<ThreadListResponse>
+
+    /**
+     * 吧页面 - 通用标签列表
+     */
+    fun generalTabList(
+        forumId: Long,
+        forumName: String,
+        tabId: Int,
+        tabType: Int,
+        tabName: String,
+        isGeneralTab: Int,
+        pn: Int = 1,
+        sortType: Int = -1,
+        lastThreadId: Long = 0,
+        isDefaultNavTab: Int = 0,
+    ): Flow<GeneralTabListResponse>
 
     fun syncFlow(clientId: String? = null): Flow<Sync>
 
@@ -1566,4 +1629,75 @@ interface ITiebaApi {
         isHide: Int,
         isTitle: Int,
     ): Flow<AddThreadBean>
+
+    /**
+     * 禁止用户互动（转、评、赞踩、@）
+     * @param blackUid 用户id
+     * @param tbs tbs（长）
+     * @param permList 参数列表：关注，互动，私信。(0,允许 1,禁止)
+     */
+    fun setUserBlackFlow(
+        blackUid: Long,
+        tbs: String,
+        permList: PermissionListBean,
+    ): Flow<CommonResponse>
+
+
+    /**
+     * 查询单个用户的拉黑信息
+     * @param blackUid 被查询用户portrait
+     */
+    fun getUserBlackInfoFlow(
+        blackUid: Long
+    ): Flow<GetUserBlackInfoBean>
+
+    /**
+     * 关注吧列表(分页)
+     * @param sortType 排序方式
+     * @param callFrom 1来自主页?(包含热搜数据),3 来自签到页?
+     * @param pageNo 页码
+     * @param resNum 单页数量
+     * @param topForumNum 置顶吧数量
+     */
+    fun forumGuideFlow(
+        sortType: Int? = 3,
+        callFrom: Int? = 3,
+        pageNo: Int,
+        resNum: Int,
+        topForumNum: Int? = 0,
+    ): Flow<ForumGuideBean>
+
+    /**
+     * 关注吧列表
+     * @param sortType 排序方式
+     * @param callFrom 1来自主页?(包含热搜数据),3 来自签到页?
+     */
+    fun allForumGuideFlow(
+        sortType: Int? = 3,
+        callFrom: Int? = 3,
+    ): Flow<ForumGuideBean>
+
+    /**
+     * 投票
+     * @param forumId 吧ID
+     * @param threadId 贴ID
+     * @param option 选项
+     */
+    fun addPollPost(
+        forumId: Long?,
+        threadId: Long,
+        option: String,
+    ): Flow<CommonResponse>
+
+    /**
+     * 投票
+     * @param forumId 吧ID
+     * @param threadId 贴ID
+     * @param option 选项
+     */
+    fun addPollPostProtobuf(
+        forumId: Long?,
+        threadId: Long,
+        option: String,
+    ): Flow<AddPollPostReponse>
 }

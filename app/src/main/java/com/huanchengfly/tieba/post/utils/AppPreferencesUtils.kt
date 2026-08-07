@@ -68,6 +68,8 @@ open class AppPreferencesUtils private constructor(ctx: Context) {
 
     var blockVideo by DataStoreDelegates.boolean(defaultValue = false)
 
+    var showFollowedOnly by DataStoreDelegates.boolean(defaultValue = false)
+
     var checkCIUpdate by DataStoreDelegates.boolean(
         defaultValue = false
     )
@@ -161,6 +163,11 @@ open class AppPreferencesUtils private constructor(ctx: Context) {
     var oksignUseOfficialOksign by DataStoreDelegates.boolean(
         defaultValue = true,
         key = "oksign_use_official_oksign"
+    )
+
+    var oksignFailAutoStop by DataStoreDelegates.boolean(
+        defaultValue = true,
+        key = "oksign_fail_auto_stop"
     )
 
     var picWatermarkType by DataStoreDelegates.string(

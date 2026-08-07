@@ -111,14 +111,15 @@ class ReplyViewModel @Inject constructor() :
 
         private fun ReplyUiIntent.Send.producePartialChange(): Flow<ReplyPartialChange.Send> {
             if (forumId != 0L && threadId == 0L ) {
+                val threadTitle = title.orEmpty()
                 return AddPostRepository
                     .addThread(
                         content,
                         forumId,
                         forumName,
-                        title = "",//这三个后面再做
+                        title = threadTitle,
                         isHide = 1,
-                        isTitle = 1,
+                        isTitle = if (threadTitle.isBlank()) 1 else 0,
                     )
                     .map<AddThreadBean, ReplyPartialChange.Send> {
                         if (it.tid == null) throw TiebaUnknownException
@@ -249,6 +250,7 @@ sealed interface ReplyUiIntent : UiIntent {
         val forumName: String,
         val threadId: Long,
         val tbs: String,
+        val title: String? = null,
         val postId: Long? = null,
         val subPostId: Long? = null,
         val replyUserId: Long? = null,

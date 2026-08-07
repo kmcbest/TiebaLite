@@ -11,8 +11,7 @@ import android.view.ViewGroup
 import androidx.annotation.CallSuper
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
-import butterknife.ButterKnife
-import butterknife.Unbinder
+import androidx.viewbinding.ViewBinding
 import com.huanchengfly.tieba.post.App
 import com.huanchengfly.tieba.post.interfaces.BackHandledInterface
 import com.huanchengfly.tieba.post.interfaces.Refreshable
@@ -29,23 +28,32 @@ import java.lang.ref.WeakReference
 import kotlin.coroutines.CoroutineContext
 
 /**
+ * Fragment 基类，支持可选的 ViewBinding（通过 setBinding 设置）。
+ * 子类可以选择：
+ * 1. 使用 ViewBinding：在 onCreateView 中调用 setBinding(binding)，然后返回 binding.root
+ * 2. 不使用 ViewBinding：不调用 setBinding，可以覆盖 onCreateView 返回自定义 View，或不覆盖（返回 null 表示无 UI）
  *
- *
- * Fragment基类，封装了懒加载的实现
- *
- *
- * ViewPager + Fragment 情况下，Fragment 的生命周期因 ViewPager 的缓存机制而失去了具体意义
- * 该抽象类自定义新的回调方法，当 Fragment 可见状态改变时会触发的回调方法，和 Fragment 第一次可见时会回调的方法
- *
- * @see .onFragmentVisibleChange
- * @see .onFragmentFirstVisible
+ * @param VB ViewBinding 类型，不需要时可指定为 Nothing
  */
-abstract class BaseFragment : Fragment(), BackHandledInterface, CoroutineScope {
+abstract class BaseFragment<VB : ViewBinding> : Fragment(), BackHandledInterface, CoroutineScope {
     val job = Job()
     override val coroutineContext: CoroutineContext
         get() = Dispatchers.Main + job
 
-    var unbinder: Unbinder? = null
+    private var _binding: VB? = null
+    /**
+     * 子类可通过此属性访问 Binding。
+     * 仅在调用过 setBinding() 后有效，否则为 null。
+     */
+    protected val binding: VB?
+        get() = _binding
+
+    /**
+     * 设置 ViewBinding 实例，由基类管理生命周期（在 onDestroyView 中自动清空）。
+     */
+    protected fun setBinding(binding: VB) {
+        this._binding = binding
+    }
 
     protected var isFragmentVisible = false
         private set
@@ -100,7 +108,6 @@ abstract class BaseFragment : Fragment(), BackHandledInterface, CoroutineScope {
     @Deprecated("Deprecated in Java")
     override fun setUserVisibleHint(isVisibleToUser: Boolean) {
         super.setUserVisibleHint(isVisibleToUser)
-        //setUserVisibleHint()有可能在fragment的生命周期外被调用
         if (rootView == null) {
             return
         }
@@ -127,9 +134,6 @@ abstract class BaseFragment : Fragment(), BackHandledInterface, CoroutineScope {
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        //如果setUserVisibleHint()在rootView创建前调用时，那么
-        //就等到rootView创建完后才回调onFragmentVisibleChange(true)
-        //保证onFragmentVisibleChange()的回调发生在rootView创建完成之后，以便支持ui操作
         if (rootView == null) {
             rootView = view
             if (userVisibleHint) {
@@ -158,18 +162,25 @@ abstract class BaseFragment : Fragment(), BackHandledInterface, CoroutineScope {
         isReuseView = true
     }
 
+    /**
+     * 子类可选择覆盖此方法。默认行为：
+     * - 如果已经通过 setBinding() 设置了 binding，则返回 binding.root
+     * - 否则返回 null（表示没有 UI）
+     */
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?
-    ): View {
-        val inflate = inflater.inflate(getLayoutId(), container, false)
-        unbinder = ButterKnife.bind(this, inflate)
-        return inflate
+    ): View? {
+        // 如果子类已经设置 binding，直接使用其 root
+        return binding?.root
     }
 
-
-    abstract fun getLayoutId(): Int
+    override fun onDestroyView() {
+        super.onDestroyView()
+        // 基类自动清空 binding 引用，防止内存泄漏
+        _binding = null
+    }
 
     /**
      * 设置是否使用 view 的复用，默认开启
@@ -179,6 +190,7 @@ abstract class BaseFragment : Fragment(), BackHandledInterface, CoroutineScope {
      *
      * @param isReuse 是否使用 view 的复用
      */
+    @Deprecated("Reuse logic is no longer actively managed by base class.")
     protected fun reuseView(isReuse: Boolean) {
         isReuseView = isReuse
     }
@@ -203,6 +215,7 @@ abstract class BaseFragment : Fragment(), BackHandledInterface, CoroutineScope {
      * 最后在 onFragmentVisibleChange() 里根据数据下载状态来控制下载进度ui控件的显示与隐藏
      */
     protected open fun onFragmentFirstVisible() {}
+
     open fun onAccountSwitch() {
         if (this is Refreshable) {
             (this as Refreshable).onRefresh()

@@ -10,6 +10,7 @@ import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.BatteryAlert
 import androidx.compose.material.icons.outlined.BrowseGallery
+import androidx.compose.material.icons.outlined.Cancel
 import androidx.compose.material.icons.outlined.OfflinePin
 import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.WatchLater
@@ -110,6 +111,23 @@ fun OKSignSettingsPage(
                     title = stringResource(id = R.string.title_oksign_use_official_oksign),
                     defaultChecked = true,
                     summary = stringResource(id = R.string.summary_oksign_use_official_oksign),
+                )
+            }
+            prefsItem {
+                SwitchPref(
+                    leadingIcon = {
+                        LeadingIcon {
+                            AvatarIcon(
+                                icon = Icons.Outlined.Cancel,
+                                size = Sizes.Small,
+                                contentDescription = null,
+                            )
+                        }
+                    },
+                    key = "oksign_fail_auto_stop",
+                    title = stringResource(id = R.string.title_oksign_fail_auto_stop),
+                    defaultChecked = true,
+                    summary = stringResource(id = R.string.summary_oksign_fail_auto_stop),
                 )
             }
             prefsItem {

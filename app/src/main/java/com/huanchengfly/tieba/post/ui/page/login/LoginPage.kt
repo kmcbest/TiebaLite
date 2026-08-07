@@ -291,8 +291,8 @@ class LoginWebViewClient(
                     .collect { account ->
                         isLoadingAccount = false
                         AccountUtil.newAccount(account.uid, account) {
-                            if (it) {
-                                AccountUtil.switchAccount(context, account.id)
+                            if (it >= 0) {
+                                AccountUtil.switchAccount(context, it.toInt())
                                 coroutineScope.launch {
                                     snackbarHostState.currentSnackbarData?.dismiss()
                                     snackbarHostState.showSnackbar(
@@ -308,7 +308,7 @@ class LoginWebViewClient(
                                 coroutineScope.launch {
                                     snackbarHostState.currentSnackbarData?.dismiss()
                                     snackbarHostState.showSnackbar(
-                                        context.getString(R.string.text_login_failed_default),
+                                        context.getString(R.string.text_database_failed_default),
                                         duration = SnackbarDuration.Short
                                     )
                                 }

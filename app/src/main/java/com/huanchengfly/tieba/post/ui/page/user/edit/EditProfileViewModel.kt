@@ -1,7 +1,9 @@
 package com.huanchengfly.tieba.post.ui.page.user.edit
 
 import androidx.compose.runtime.Stable
+import com.huanchengfly.tieba.post.App
 import com.huanchengfly.tieba.post.api.TiebaApi
+import com.huanchengfly.tieba.post.utils.DatabaseUtil
 import com.huanchengfly.tieba.post.api.interfaces.ITiebaApi
 import com.huanchengfly.tieba.post.api.models.protos.profile.ProfileResponse
 import com.huanchengfly.tieba.post.api.retrofit.exception.getErrorCode
@@ -81,8 +83,8 @@ class EditProfileViewModel @Inject constructor() :
                             constellation = user.birthday_info?.constellation
                             tiebaUid = user.tieba_uid
                             loadSuccess = true
-                            updateAll("uid = ?", uid)
                         }
+                        DatabaseUtil.updateAccount(account)
                         EditProfilePartialChange.Init.Success(account = account)
                     }
                     .onStart { emit(EditProfilePartialChange.Init.Loading) }

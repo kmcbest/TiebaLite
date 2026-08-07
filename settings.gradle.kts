@@ -11,31 +11,26 @@ pluginManagement {
         maven("https://jitpack.io")
     }
 }
-plugins {
-    id("com.highcapable.sweetdependency") version "1.0.4"
-    id("com.highcapable.sweetproperty") version "1.0.5"
+
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+        maven("https://maven.aliyun.com/repository/public")
+        maven("https://jitpack.io")
+        maven("https://developer.huawei.com/repo/")
+        maven("https://developer.hihonor.com/repo")
+    }
 }
-sweetProperty {
-    isEnable = true
-    global {
-        all {
-            isEnableTypeAutoConversion = true
-            propertiesFileNames(
-                "keystore.properties",
-                "application.properties",
-                isAddDefault = true
-            )
-            permanentKeyValues(
-                "keystore.file" to "",
-                "keystore.password" to "",
-                "keystore.key.alias" to "",
-                "keystore.key.password" to "",
-            )
-            generateFrom(CURRENT_PROJECT, ROOT_PROJECT)
-        }
-        buildScript {
-            extensionName = "property"
-        }
+
+plugins {
+    id("de.fayard.refreshVersions") version "0.60.6"
+}
+
+refreshVersions {
+    rejectVersionIf {
+          candidate.stabilityLevel.isLessStableThan(current.stabilityLevel)
     }
 }
 

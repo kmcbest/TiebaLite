@@ -8,29 +8,28 @@ import android.content.res.Resources;
 import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
+import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
 
 import androidx.annotation.CallSuper;
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.coordinatorlayout.widget.CoordinatorLayout;
+import androidx.viewbinding.ViewBinding;
 
 import com.google.android.material.bottomsheet.BottomSheetBehavior;
 import com.google.android.material.bottomsheet.BottomSheetDialog;
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment;
 import com.huanchengfly.tieba.post.R;
-import com.huanchengfly.tieba.post.utils.Util;
-
-import butterknife.ButterKnife;
-import butterknife.Unbinder;
 
 public abstract class BaseBottomSheetDialogFragment extends BottomSheetDialogFragment {
     public static final String TAG = "BaseBottomSheetDialog";
     protected BottomSheetDialog dialog;
     protected BottomSheetBehavior mBehavior;
-    Unbinder mUnbinder;
     View rootView;
+    private ViewBinding binding;
     private Context attachContext;
 
     public BaseBottomSheetDialogFragment() {
@@ -120,20 +119,49 @@ public abstract class BaseBottomSheetDialogFragment extends BottomSheetDialogFra
     protected void onCreatedBehavior(BottomSheetBehavior<?> behavior) {
     }
 
+    /**
+     * 子类如果需要使用 ViewBinding，应在此方法调用前（如 onCreate 中）调用 setBinding
+     */
+    protected void setBinding(@NonNull ViewBinding binding) {
+        this.binding = binding;
+    }
+
+    /**
+     * 当未通过 setBinding 设置 ViewBinding 时，子类需覆盖此方法返回内容视图
+     * 默认实现返回 null，此时会抛出异常
+     */
+    @Nullable
+    protected View onCreateContentView(@NonNull LayoutInflater inflater) {
+        return null;
+    }
+
     @NonNull
     @Override
     public Dialog onCreateDialog(Bundle savedInstanceState) {
         dialog = new BottomSheetDialog(getAttachContext(), R.style.BottomSheetDialogStyle);
-        if (rootView == null) {
-            rootView = Util.inflate(getAttachContext(), getLayoutId());
-            assert rootView != null;
-            mUnbinder = ButterKnife.bind(this, rootView);
-        }
-        resetView();
-        dialog.setContentView(rootView);
         mBehavior = dialog.getBehavior();
         mBehavior.setHideable(true);
         onCreatedBehavior(mBehavior);
+
+        // 获取内容视图：优先使用 binding，否则调用 onCreateContentView
+        View contentView = null;
+        if (binding != null) {
+            rootView = binding.getRoot();
+            contentView = rootView;
+        } else {
+            LayoutInflater inflater = LayoutInflater.from(getAttachContext());
+            View customView = onCreateContentView(inflater);
+            if (customView != null) {
+                rootView = customView;
+                contentView = rootView;
+            }
+        }
+
+        if (contentView == null) {
+            throw new IllegalStateException("You must either call setBinding(ViewBinding) or override onCreateContentView() to provide the dialog content.");
+        }
+        dialog.setContentView(contentView);
+
         if (dialog.getWindow() != null) {
             if (needFixHeight())
                 dialog.getWindow().setLayout(ViewGroup.LayoutParams.MATCH_PARENT, getHeight());
@@ -152,9 +180,20 @@ public abstract class BaseBottomSheetDialogFragment extends BottomSheetDialogFra
         return dialogHeight == 0 ? ViewGroup.LayoutParams.MATCH_PARENT : dialogHeight;
     }
 
-    protected abstract int getLayoutId();
-
     protected boolean needFixHeight() {
         return true;
+    }
+
+    @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+        binding = null;
+        rootView = null;
+    }
+
+    // 方便子类获取 binding（可能为 null）
+    @Nullable
+    protected ViewBinding getBinding() {
+        return binding;
     }
 }

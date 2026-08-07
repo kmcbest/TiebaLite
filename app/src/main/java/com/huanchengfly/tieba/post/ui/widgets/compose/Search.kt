@@ -1,6 +1,7 @@
 package com.huanchengfly.tieba.post.ui.widgets.compose
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -27,7 +28,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Clear
 import androidx.compose.material.icons.rounded.PhotoSizeSelectActual
 import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.ripple.rememberRipple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -78,7 +78,7 @@ fun QuotePostCard(
 ) {
     val quoteContentString = remember(quotePostInfo) {
         buildAnnotatedStringWithUser(
-            quotePostInfo.user.userId.toString(),
+            quotePostInfo.user.userId,
             quotePostInfo.user.userName ?: "",
             quotePostInfo.user.showNickname,
             quotePostInfo.content
@@ -119,7 +119,7 @@ fun MainPostCard(
 ) {
     val titleString = remember(mainPost) {
         buildAnnotatedStringWithUser(
-            mainPost.user.userId.toString(),
+            mainPost.user.userId,
             mainPost.user.userName ?: "",
             mainPost.user.showNickname,
             mainPost.title
@@ -296,20 +296,20 @@ fun SearchThreadItem(
         action = {
             Row(modifier = Modifier.fillMaxWidth()) {
                 ThreadReplyBtn(
-                    replyNum = item.postNum.toInt(),
+                    replyNum = item.postNum,
                     onClick = {},
                     modifier = Modifier.weight(1f)
                 )
 
                 ThreadAgreeBtn(
                     hasAgree = false,
-                    agreeNum = item.likeNum.toInt(),
+                    agreeNum = item.likeNum,
                     onClick = {},
                     modifier = Modifier.weight(1f)
                 )
 
                 ThreadShareBtn(
-                    shareNum = item.shareNum.toLong(),
+                    shareNum = item.shareNum,
                     onClick = {},
                     modifier = Modifier.weight(1f)
                 )
@@ -456,7 +456,7 @@ fun SearchBox(
                             .clip(RoundedCornerShape(100))
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
-                                indication = rememberRipple(bounded = false, 24.dp),
+                                indication = LocalIndication.current,
                                 role = Role.Button
                             ) { onKeywordChange("") },
                         contentAlignment = Alignment.Center,
@@ -472,12 +472,11 @@ fun SearchBox(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(100))
-                        .debounceClickable(
+                        .clickable(
                             interactionSource = remember { MutableInteractionSource() },
-                            indication = rememberRipple(bounded = false, 24.dp),
-                            role = Role.Button,
-                            onClick =  { onKeywordSubmit(keyword) }
-                        ),
+                            indication = LocalIndication.current,
+                            role = Role.Button
+                        ) { onKeywordSubmit(keyword) },
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(

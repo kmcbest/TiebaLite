@@ -1,7 +1,9 @@
 package com.huanchengfly.tieba.post.ui.page.main.user
 
 import androidx.compose.runtime.Stable
+import com.huanchengfly.tieba.post.App
 import com.huanchengfly.tieba.post.api.TiebaApi
+import com.huanchengfly.tieba.post.utils.DatabaseUtil
 import com.huanchengfly.tieba.post.api.models.protos.profile.ProfileResponse
 import com.huanchengfly.tieba.post.api.retrofit.exception.getErrorMessage
 import com.huanchengfly.tieba.post.arch.BaseViewModel
@@ -52,31 +54,31 @@ class UserViewModel @Inject constructor() : BaseViewModel<UserUiIntent, UserPart
             return if (account == null) {
                 listOf(UserPartialChange.Refresh.NotLogin).asFlow()
             } else {
-                TiebaApi.getInstance()
-                    .userProfileFlow(account.uid.toLong())
-                    .map<ProfileResponse, UserPartialChange> { profile ->
-                        val user = checkNotNull(profile.data_?.user)
-                        account.apply {
-                            nameShow = user.nameShow
-                            portrait = user.portrait
-                            intro = user.intro
-                            sex = user.sex.toString()
-                            fansNum = user.fans_num.toString()
-                            postNum = user.post_num.toString()
-                            threadNum = user.thread_num.toString()
-                            concernNum = user.concern_num.toString()
-                            tbAge = user.tb_age
-                            age = user.birthday_info?.age?.toString()
-                            birthdayShowStatus =
-                                user.birthday_info?.birthday_show_status?.toString()
-                            birthdayTime = user.birthday_info?.birthday_time?.toString()
-                            constellation = user.birthday_info?.constellation
-                            tiebaUid = user.tieba_uid
-                            loadSuccess = true
-                            updateAll("uid = ?", uid)
-                        }
-                        UserPartialChange.Refresh.Success(account = account)
-                    }
+                        TiebaApi.getInstance()
+                            .userProfileFlow(account.uid.toLong())
+                            .map<ProfileResponse, UserPartialChange> { profile ->
+                                val user = checkNotNull(profile.data_?.user)
+                                account.apply {
+                                    nameShow = user.nameShow
+                                    portrait = user.portrait
+                                    intro = user.intro
+                                    sex = user.sex.toString()
+                                    fansNum = user.fans_num.toString()
+                                    postNum = user.post_num.toString()
+                                    threadNum = user.thread_num.toString()
+                                    concernNum = user.concern_num.toString()
+                                    tbAge = user.tb_age
+                                    age = user.birthday_info?.age?.toString()
+                                    birthdayShowStatus =
+                                        user.birthday_info?.birthday_show_status?.toString()
+                                    birthdayTime = user.birthday_info?.birthday_time?.toString()
+                                    constellation = user.birthday_info?.constellation
+                                    tiebaUid = user.tieba_uid
+                                    loadSuccess = true
+                                }
+                                DatabaseUtil.updateAccount(account)
+                                UserPartialChange.Refresh.Success(account = account)
+                            }
                     .onStart {
                         emit(UserPartialChange.Refresh.Start)
                         if (account.loadSuccess) {

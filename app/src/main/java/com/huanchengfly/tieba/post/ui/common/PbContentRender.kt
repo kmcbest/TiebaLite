@@ -1,15 +1,20 @@
 package com.huanchengfly.tieba.post.ui.common
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.InlineTextContent
+import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.LocalTextStyle
 import androidx.compose.material.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -33,6 +38,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -99,7 +105,7 @@ data class TextContentRender(
         ) {
             val lastRender = lastOrNull()
             if (lastRender is TextContentRender) {
-                removeLast()
+                removeAt(lastIndex)
                 add(lastRender + text)
             } else
                 add(TextContentRender(text))
@@ -110,7 +116,7 @@ data class TextContentRender(
         ) {
             val lastRender = lastOrNull()
             if (lastRender is TextContentRender) {
-                removeLast()
+                removeAt(lastIndex)
                 add(lastRender + text)
             } else
                 add(TextContentRender(text))
@@ -137,11 +143,31 @@ data class PicContentRender(
 
         NetworkImage(
             imageUri = picUrl,
-            contentDescription = null,
+            contentDescription = stringResource(id = R.string.desc_image),
             modifier = Modifier
+                .focusable()
                 .clip(RoundedCornerShape(context.appPreferences.radius.dp))
                 .fillMaxWidth(widthFraction)
                 .aspectRatio(width * 1f / height),
+            photoViewData = photoViewData,
+            contentScale = ContentScale.Crop
+        )
+    }
+
+    @Composable
+    fun FullWidthRender() {
+        val context = LocalContext.current
+        NetworkImage(
+            imageUri = picUrl,
+            contentDescription = stringResource(id = R.string.desc_image),
+            modifier = Modifier
+                .focusable()
+                .clip(RoundedCornerShape(context.appPreferences.radius.dp))
+                .fillMaxWidth()
+                .aspectRatio(
+                    if (width > 0 && height > 0) width * 1f / height
+                    else 1f
+                ),
             photoViewData = photoViewData,
             contentScale = ContentScale.Crop
         )
@@ -166,7 +192,7 @@ data class VoiceContentRender(
     }
 
     override fun toString(): String {
-        return "[视频]"
+        return "[语音]"
     }
 }
 
@@ -222,7 +248,7 @@ data class VideoContentRender(
     }
 
     override fun toString(): String {
-        return "[语音]"
+        return "[视频]"
     }
 }
 
@@ -272,6 +298,60 @@ fun PbContentText(
     )
 }
 
+@Composable
+fun PicWaterfallContentRender(
+    images: List<PicContentRender>,
+    modifier: Modifier = Modifier,
+    horizontalSpacing: Dp = 8.dp,
+    verticalSpacing: Dp = 8.dp,
+) {
+    if (images.isEmpty()) return
+
+    val columns = when (LocalWindowSizeClass.current.widthSizeClass) {
+        WindowWidthSizeClass.Compact -> 1
+        WindowWidthSizeClass.Medium -> 2
+        WindowWidthSizeClass.Expanded -> 3
+        else -> 1
+    }
+
+    val columnGroups = remember(images, columns) {
+        assignToColumns(images, columns)
+    }
+
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(horizontalSpacing)
+    ) {
+        columnGroups.forEach { columnImages ->
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(verticalSpacing)
+            ) {
+                columnImages.forEach { image ->
+                    image.FullWidthRender()
+                }
+            }
+        }
+    }
+}
+
+private fun assignToColumns(
+    images: List<PicContentRender>,
+    columns: Int,
+): List<List<PicContentRender>> {
+    if (columns <= 1) return listOf(images)
+    val ratios = FloatArray(columns) { 0f }
+    val result = MutableList(columns) { mutableListOf<PicContentRender>() }
+    for (image in images) {
+        val ratio = if (image.width > 0) image.height.toFloat() / image.width else 1f
+        val idx = ratios.indices.minByOrNull { ratios[it] }!!
+        result[idx].add(image)
+        ratios[idx] += ratio
+    }
+    return result
+}
+
+@OptIn(ExperimentalMaterialApi::class)
 @Composable
 fun PbContentText(
     text: AnnotatedString,

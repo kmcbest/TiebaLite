@@ -101,7 +101,7 @@ object ClipBoardLinkDetector : Application.ActivityLifecycleCallbacks {
     override fun onActivityResumed(activity: Activity) {}
 
     private fun checkClipBoard(activity: Activity) {
-        if (activity !is BaseActivity) return
+        if (activity !is BaseActivity<*>) return
         if (clipBoardHash == getClipBoardHash()) {
             mutablePreviewInfoStateFlow.value = null
             return

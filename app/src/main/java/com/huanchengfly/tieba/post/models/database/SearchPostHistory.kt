@@ -1,13 +1,15 @@
 package com.huanchengfly.tieba.post.models.database
 
 import androidx.compose.runtime.Immutable
-import org.litepal.crud.LitePalSupport
+import androidx.room.ColumnInfo
+import androidx.room.Entity
+import androidx.room.PrimaryKey
 
 @Immutable
-class SearchPostHistory(
+@Entity(tableName = "searchposthistory")
+data class SearchPostHistory(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val content: String,
-    val forumName: String,
+    @ColumnInfo(name = "forumname") val forumName: String,
     val timestamp: Long = System.currentTimeMillis(),
-) : LitePalSupport() {
-    val id: Long = 0
-}
+)

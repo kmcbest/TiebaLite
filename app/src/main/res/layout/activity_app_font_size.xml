@@ -8,7 +8,9 @@
     app:backgroundTint="@color/default_color_window_background"
     tools:context=".activities.AppFontSizeActivity">
 
-    <include layout="@layout/layout_new_appbar" />
+    <include
+	android:id="@+id/appbar"
+	layout="@layout/layout_new_appbar" />
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"

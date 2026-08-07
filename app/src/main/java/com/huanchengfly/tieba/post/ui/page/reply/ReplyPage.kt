@@ -29,7 +29,6 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredHeightIn
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -56,7 +55,6 @@ import androidx.compose.material.icons.outlined.InsertPhoto
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
@@ -70,18 +68,23 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onVisibilityChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.widget.addTextChangedListener
 import com.github.panpf.sketch.compose.AsyncImage
 import com.google.accompanist.drawablepainter.rememberDrawablePainter
+import com.huanchengfly.tieba.post.App
 import com.huanchengfly.tieba.post.R
 import com.huanchengfly.tieba.post.arch.GlobalEvent
 import com.huanchengfly.tieba.post.arch.collectPartialAsState
@@ -100,16 +103,17 @@ import com.huanchengfly.tieba.post.ui.page.reply.ReplyPanelType.IMAGE
 import com.huanchengfly.tieba.post.ui.page.reply.ReplyPanelType.NONE
 import com.huanchengfly.tieba.post.ui.utils.imeNestedScroll
 import com.huanchengfly.tieba.post.ui.widgets.compose.BaseDialog
+import com.huanchengfly.tieba.post.ui.widgets.compose.BaseTextField
 import com.huanchengfly.tieba.post.ui.widgets.compose.Dialog
 import com.huanchengfly.tieba.post.ui.widgets.compose.DialogNegativeButton
 import com.huanchengfly.tieba.post.ui.widgets.compose.DialogPositiveButton
 import com.huanchengfly.tieba.post.ui.widgets.compose.DialogState
 import com.huanchengfly.tieba.post.ui.widgets.compose.MyBackHandler
 import com.huanchengfly.tieba.post.ui.widgets.compose.VerticalDivider
-import com.huanchengfly.tieba.post.ui.widgets.compose.debounceClickable
 import com.huanchengfly.tieba.post.ui.widgets.compose.rememberDialogState
 import com.huanchengfly.tieba.post.ui.widgets.edittext.widget.UndoableEditText
 import com.huanchengfly.tieba.post.utils.AccountUtil
+import com.huanchengfly.tieba.post.utils.DatabaseUtil
 import com.huanchengfly.tieba.post.utils.Emoticon
 import com.huanchengfly.tieba.post.utils.EmoticonManager
 import com.huanchengfly.tieba.post.utils.PickMediasRequest
@@ -122,17 +126,14 @@ import com.ramcosta.composedestinations.navigation.DestinationsNavigator
 import com.ramcosta.composedestinations.spec.DestinationStyleBottomSheet
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.sample
 import kotlinx.coroutines.launch
-import org.litepal.LitePal
-import org.litepal.extension.deleteAllAsync
-import org.litepal.extension.findFirstAsync
 import java.util.UUID
-import kotlin.concurrent.thread
 import kotlin.math.max
 
 data class ReplyArgs(
@@ -236,10 +237,12 @@ internal fun ReplyPageContent(
         prop1 = ReplyUiState::replyType,
         initial = NONE
     )
+    val isTopicThread = replyType == ReplyType.TOPIC_THREAD
     //threadId为0时切换为发主题帖
     if (forumId != 0L && threadId == 0L) viewModel.send(ReplyUiIntent.SwitchReplyType(ReplyType.TOPIC_THREAD))
     val keyboardController = LocalSoftwareKeyboardController.current
     var initialText by remember { mutableStateOf("") }
+    var threadTitle by remember { mutableStateOf("") }
     var waitEditTextToSet by remember { mutableStateOf(false) }
     var editTextView by remember { mutableStateOf<UndoableEditText?>(null) }
     fun getText(): String {
@@ -268,23 +271,17 @@ internal fun ReplyPageContent(
     val curTextFlow = remember { MutableStateFlow("") }
     val curText by curTextFlow.collectAsState()
     LaunchedEffect(Unit) {
+        val draft = DatabaseUtil.getDraft(hash)
+        if (draft != null) {
+            setText(draft.content)
+        }
         curTextFlow
             .sample(500)
             .distinctUntilChanged()
             .collect {
                 Log.i("ReplyPage", "collect: $it")
                 if (!replySuccess) {
-                    thread {
-                        Draft(hash, it).saveOrUpdate("hash = ?", hash)
-                    }
-                }
-            }
-    }
-    LaunchedEffect(Unit) {
-        LitePal.where("hash = ?", hash).findFirstAsync<Draft?>()
-            .listen {
-                if (it != null) {
-                    setText(it.content)
+                    DatabaseUtil.saveDraft(hash, it)
                 }
             }
     }
@@ -300,13 +297,24 @@ internal fun ReplyPageContent(
             else -> context.getString(R.string.title_reply)
         }
     }
+    LaunchedEffect(replyType, editTextView) {
+        editTextView?.hint = when {
+            replyType == ReplyType.TOPIC_THREAD -> context.getString(R.string.tip_thread_content)
+            subPostId != null && subPostId != 0L && replyUserName != null ->
+                context.getString(R.string.hint_reply, replyUserName)
+            else -> context.getString(R.string.tip_reply)
+        }
+    }
     viewModel.onEvent<ReplyUiEvent.ReplySuccess> {
         if (it.expInc.isEmpty()) {
             context.toastShort(R.string.toast_add_thread_success_default)
         } else {
             context.toastShort(R.string.toast_reply_success, it.expInc)
         }
-        LitePal.deleteAllAsync<Draft>("hash = ?", hash).listen { onBack() }
+        coroutineScope.launch {
+            DatabaseUtil.deleteDraft(hash)
+            onBack()
+        }
     }
 
     var waitUploadSuccessToSend by remember { mutableStateOf(false) }
@@ -324,6 +332,7 @@ internal fun ReplyPageContent(
                     forumName,
                     threadId,
                     curTbs,
+                    title = threadTitle.takeIf { isTopicThread },
                     postId,
                     subPostId,
                     replyUserId,
@@ -336,9 +345,9 @@ internal fun ReplyPageContent(
     var startClosingAnimation by remember { mutableStateOf(false) }
 
     fun showKeyboard() {
-        editTextView?.apply {
-            showKeyboard(context, this)
-            requestFocus()
+        editTextView?.post {
+            editTextView?.requestFocus()
+            showKeyboard(context, editTextView!!)
         }
         keyboardController?.show()
     }
@@ -441,6 +450,7 @@ internal fun ReplyPageContent(
         Modifier
             .fillMaxWidth()
             .navigationBarsPadding()
+            .consumeWindowInsets(WindowInsets.ime)
     } else {
         Modifier
             .fillMaxWidth()
@@ -449,7 +459,23 @@ internal fun ReplyPageContent(
     }
 
     Column(
-        modifier = parentModifier,
+        modifier = parentModifier
+//            .onFirstVisible() {
+//                if (editTextView != null) {
+//                    showKeyboard()
+//                }
+//            }
+            .onVisibilityChanged { visibility ->
+                if (imeAnimationEnd && (visibility && imeAnimationTargetHeight == 0)) {
+                    showKeyboard()
+                }
+                if (imeAnimationEnd && (!visibility && imeAnimationTargetHeight > 10)) {
+                    hideKeyboard()
+                }
+            }
+            .padding(bottom = with(density) {
+                imeAnimationTargetHeight.toDp()
+            }),
         verticalArrangement = Arrangement.Bottom
     ) {
         Row(
@@ -468,6 +494,31 @@ internal fun ReplyPageContent(
             )
         }
         VerticalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+        if (isTopicThread) {
+            BaseTextField(
+                value = threadTitle,
+                onValueChange = { if (it.length <= 31) threadTitle = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                singleLine = true,
+                textStyle = MaterialTheme.typography.subtitle1.copy(
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                ),
+                keyboardOptions = KeyboardOptions(
+                    capitalization = KeyboardCapitalization.Sentences,
+                ),
+                placeholder = {
+                    Text(
+                        text = stringResource(id = R.string.hint_thread_title),
+                        style = MaterialTheme.typography.subtitle1.copy(fontSize = 15.sp),
+                        color = ExtendedTheme.colors.textSecondary,
+                    )
+                },
+            )
+            VerticalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+        }
         Box(
             modifier = Modifier
                 .wrapContentHeight()
@@ -489,8 +540,11 @@ internal fun ReplyPageContent(
                             null
                         ) as UndoableEditText).apply {
                             editTextView = this
-                            if (subPostId != null && subPostId != 0L && replyUserName != null) {
-                                hint = ctx.getString(R.string.hint_reply, replyUserName)
+                            hint = when {
+                                isTopicThread -> ctx.getString(R.string.tip_thread_content)
+                                subPostId != null && subPostId != 0L && replyUserName != null ->
+                                    ctx.getString(R.string.hint_reply, replyUserName)
+                                else -> ctx.getString(R.string.tip_reply)
                             }
                             setOnFocusChangeListener { _, hasFocus ->
                                 if (hasFocus) {
@@ -609,6 +663,7 @@ internal fun ReplyPageContent(
                                     forumName = forumName,
                                     threadId = threadId,
                                     tbs = curTbs,
+                                    title = threadTitle.takeIf { isTopicThread },
                                     postId = postId,
                                     subPostId = subPostId,
                                     replyUserId = replyUserId
@@ -636,11 +691,11 @@ internal fun ReplyPageContent(
                 }
             }
         }
-        Spacer(
-            modifier = Modifier
-                .fillMaxWidth()
-                .windowInsetsBottomHeight(WindowInsets.ime)
-        )
+//        Spacer(
+//            modifier = Modifier
+//                .fillMaxWidth()
+//                .windowInsetsPadding(WindowInsets.ime)
+//        )
         if (curKeyboardType != NONE) {
             Column(modifier = Modifier.height(panelHeight)) {
                 when (curKeyboardType) {
@@ -669,8 +724,8 @@ internal fun ReplyPageContent(
                                 viewModel.send(ReplyUiIntent.ToggleIsOriginImage(it))
                             },
                             modifier = Modifier
-                                .fillMaxSize()
-                                .padding(16.dp),
+                                .padding(16.dp, 8.dp)
+                                .fillMaxSize(),
                         )
                     }
 
@@ -686,17 +741,17 @@ internal fun ReplyPageContent(
         }
     }
 
-    DisposableEffect(editTextView) {
-        if (editTextView != null) {
-            showKeyboard()
-        }
-
-        onDispose {
-            if (editTextView != null) {
-                hideKeyboard()
-            }
-        }
-    }
+//    DisposableEffect(Unit) {
+//        if (editTextView != null) {
+//            showKeyboard()
+//        }
+//
+//        onDispose {
+//            if (editTextView != null) {
+//                hideKeyboard()
+//            }
+//        }
+//    }
 
     fun getDispatchUri(): Uri {
         return if (postId != null) {
@@ -846,7 +901,7 @@ private fun ImagePanel(
 
     Column(
         modifier = modifier,
-        verticalArrangement = Arrangement.Center
+        verticalArrangement = Arrangement.Top
     ) {
         LazyRow(
             modifier = Modifier

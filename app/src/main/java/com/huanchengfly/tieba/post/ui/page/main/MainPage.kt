@@ -41,6 +41,8 @@ import com.huanchengfly.tieba.post.ui.common.windowsizeclass.WindowWidthSizeClas
 import com.huanchengfly.tieba.post.ui.page.ProvideNavigator
 import com.huanchengfly.tieba.post.ui.page.main.explore.ExplorePage
 import com.huanchengfly.tieba.post.ui.page.main.home.HomePage
+import com.huanchengfly.tieba.post.ui.page.main.home.HomeUiIntent
+import com.huanchengfly.tieba.post.ui.page.main.home.HomeViewModel
 import com.huanchengfly.tieba.post.ui.page.main.notifications.NotificationsPage
 import com.huanchengfly.tieba.post.ui.page.main.user.UserPage
 import com.huanchengfly.tieba.post.ui.utils.DevicePosture
@@ -55,6 +57,7 @@ import com.ramcosta.composedestinations.navigation.DestinationsNavigator
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.launch
+import com.huanchengfly.tieba.post.utils.AccountUtil.LocalAccount
 
 @Composable
 private fun NavigationWrapper(
@@ -104,6 +107,7 @@ fun MainPage(
     viewModel: MainViewModel = pageViewModel<MainUiIntent, MainViewModel>(emptyList()),
 ) {
     val windowSizeClass = LocalWindowSizeClass.current
+    val account = LocalAccount.current
     val windowHeightSizeClass by rememberUpdatedState(newValue = windowSizeClass.heightSizeClass)
     val windowWidthSizeClass by rememberUpdatedState(newValue = windowSizeClass.widthSizeClass)
     val foldingDevicePosture by LocalDevicePosture.current
@@ -135,7 +139,7 @@ fun MainPage(
     }
     val pagerState = rememberPagerState(
         pageCount = { pageCount },
-        initialPage = if (hideExplore  && defaultStart > 0 ) defaultStart-1 else defaultStart
+        initialPage = if (hideExplore && defaultStart > 0) defaultStart - 1 else defaultStart
     )
 
     LaunchedEffect(hideExplore) {
@@ -143,6 +147,10 @@ fun MainPage(
             pagerState.scrollToPage(2)
         }
     }
+
+    val homeViewModel = if (account != null) {
+        pageViewModel<HomeUiIntent, HomeViewModel>(listOf(HomeUiIntent.Refresh))
+    } else pageViewModel()
 
     val coroutineScope = rememberCoroutineScope()
     val themeColors = ExtendedTheme.colors
@@ -155,6 +163,7 @@ fun MainPage(
                     title = { stringResource(id = R.string.title_main) },
                     content = {
                         HomePage(
+                            viewModel = homeViewModel,
                             canOpenExplore = !LocalContext.current.appPreferences.hideExplore
                         ) {
                             coroutineScope.launch {

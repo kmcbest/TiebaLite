@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -62,10 +63,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.fastForEach
 import androidx.compose.ui.util.fastForEachIndexed
-import com.google.accompanist.placeholder.PlaceholderHighlight
-import com.google.accompanist.placeholder.material.fade
-import com.google.accompanist.placeholder.material.placeholder
-import com.google.accompanist.systemuicontroller.rememberSystemUiController
+import com.eygraber.compose.placeholder.PlaceholderHighlight
+import com.eygraber.compose.placeholder.material.fade
+import com.eygraber.compose.placeholder.material.placeholder
+import com.stoyanvuchev.systemuibarstweaker.rememberSystemUIBarsTweaker
 import com.huanchengfly.tieba.post.App
 import com.huanchengfly.tieba.post.R
 import com.huanchengfly.tieba.post.api.models.ThreadBean
@@ -128,7 +129,7 @@ private fun UserHeader(
             Avatar(
                 data = user.get { StringUtil.getAvatarUrl(portrait) },
                 size = Sizes.Small,
-                contentDescription = null
+                contentDescription = stringResource(id = R.string.user_portrait)
             )
         },
         name = {
@@ -176,7 +177,7 @@ fun UserHeader(
             Avatar(
                 data = StringUtil.getAvatarUrl(portrait),
                 size = Sizes.Small,
-                contentDescription = null
+                contentDescription = stringResource(id = R.string.user_portrait)
             )
         },
         name = {
@@ -331,6 +332,7 @@ fun FeedCardPlaceholder() {
                 modifier = Modifier
                     .placeholder(
                         visible = true,
+                        color = MaterialTheme.colors.surface,
                         highlight = PlaceholderHighlight.fade(),
                     )
             )
@@ -345,6 +347,7 @@ fun FeedCardPlaceholder() {
                     .fillMaxWidth()
                     .placeholder(
                         visible = true,
+                        color = MaterialTheme.colors.surface,
                         highlight = PlaceholderHighlight.fade(),
                     )
             )
@@ -382,7 +385,7 @@ fun ForumInfoChip(
         imageUri?.let {
             Avatar(
                 data = imageUri,
-                contentDescription = null,
+                contentDescription = stringResource(id = R.string.forum_portrait),
                 modifier = Modifier
                     .fillMaxHeight()
                     .aspectRatio(1f),
@@ -567,8 +570,9 @@ private fun ThreadMedia(
                                 }
                                 NetworkImage(
                                     imageUri = remember(media) { media.url },
-                                    contentDescription = null,
+                                    contentDescription = stringResource(id = R.string.desc_photo),
                                     modifier = Modifier
+                                        .focusable()
                                         .fillMaxHeight()
                                         .weight(1f),
                                     photoViewData = photoViewData,
@@ -667,7 +671,7 @@ private fun ThreadForumInfo(
 
 @Composable
 fun ThreadReplyBtn(
-    replyNum: Int,
+    replyNum: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -680,9 +684,9 @@ fun ThreadReplyBtn(
         },
         text = {
             Text(
-                text = if (replyNum == 0)
+                text = if (replyNum == "0" || replyNum.isEmpty())
                     stringResource(id = R.string.title_reply)
-                else replyNum.getShortNumString()
+                else replyNum.toLongOrNull()?.getShortNumString() ?: replyNum
             )
         },
         modifier = modifier,
@@ -694,7 +698,7 @@ fun ThreadReplyBtn(
 @Composable
 fun ThreadAgreeBtn(
     hasAgree: Boolean,
-    agreeNum: Int,
+    agreeNum: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -711,9 +715,9 @@ fun ThreadAgreeBtn(
         },
         text = {
             Text(
-                text = if (agreeNum == 0)
+                text = if (agreeNum == "0" || agreeNum.isEmpty())
                     stringResource(id = R.string.title_agree)
-                else agreeNum.getShortNumString()
+                else agreeNum.toLongOrNull()?.getShortNumString() ?: agreeNum
             )
         },
         modifier = modifier,
@@ -724,7 +728,7 @@ fun ThreadAgreeBtn(
 
 @Composable
 fun ThreadShareBtn(
-    shareNum: Long,
+    shareNum: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -737,9 +741,9 @@ fun ThreadShareBtn(
         },
         text = {
             Text(
-                text = if (shareNum == 0L)
+                text = if (shareNum == "0" || shareNum.isEmpty())
                     stringResource(id = R.string.title_share)
-                else shareNum.getShortNumString()
+                else shareNum.toLongOrNull()?.getShortNumString() ?: shareNum
             )
         },
         modifier = modifier,
@@ -807,20 +811,20 @@ fun FeedCard(
         action = {
             Row(modifier = Modifier.fillMaxWidth()) {
                 ThreadShareBtn(
-                    shareNum = item.get { shareNum },
+                    shareNum = item.get { shareNum }.toString(),
                     onClick = {},
                     modifier = Modifier.weight(1f)
                 )
 
                 ThreadReplyBtn(
-                    replyNum = item.get { replyNum },
+                    replyNum = item.get { replyNum }.toString(),
                     onClick = { onClickReply(item.get()) },
                     modifier = Modifier.weight(1f)
                 )
 
                 ThreadAgreeBtn(
                     hasAgree = item.get { agree?.hasAgree == 1 },
-                    agreeNum = item.get { agreeNum },
+                    agreeNum = item.get { agreeNum }.toString(),
                     onClick = { onAgree(item.get()) },
                     modifier = Modifier.weight(1f)
                 )
@@ -847,7 +851,7 @@ fun FeedCard(
     Card(
         header = {
             UserHeader(
-                nameProvider = { item.get { threadInfo.author.name.toString() } },
+                nameProvider = { item.get { threadInfo.author.name }.orEmpty() },
                 nameShowProvider = { item.get { threadInfo.author.showNickName } },
                 portraitProvider = { item.get { threadInfo.author.portrait } },
                 timeProvider = { item.get { threadInfo.createTime.toInt() } },
@@ -871,27 +875,27 @@ fun FeedCard(
             )
             ThreadForumInfo(
                 forumName = item.get { threadInfo.forumName },
-                forumAvatar = null,
+                forumAvatar = item.get { threadInfo.avatar },
                 onClick = { onClickForum(item.get { threadInfo.forumName }) }
             )
         },
         action = {
             Row(modifier = Modifier.fillMaxWidth()) {
                 ThreadShareBtn(
-                    shareNum = item.get { threadInfo.shareNum }.toLong(),
+                    shareNum = item.get { threadInfo.shareNum }.toString(),
                     onClick = {},
                     modifier = Modifier.weight(1f)
                 )
 
                 ThreadReplyBtn(
-                    replyNum = item.get { threadInfo.replyNum },
+                    replyNum = item.get { threadInfo.replyNum }.toString(),
                     onClick = { onClickReply(item.get()) },
                     modifier = Modifier.weight(1f)
                 )
 
                 ThreadAgreeBtn(
                     hasAgree = item.get { threadInfo.agree.hasAgree == 1 },
-                    agreeNum = item.get { threadInfo.agreeNum },
+                    agreeNum = item.get { threadInfo.agreeNum }.toString(),
                     onClick = { onAgree(item.get()) },
                     modifier = Modifier.weight(1f)
                 )
@@ -964,20 +968,20 @@ fun FeedCard(
         action = {
             Row(modifier = Modifier.fillMaxWidth()) {
                 ThreadShareBtn(
-                    shareNum = item.get { share_num }.toLong(),
+                    shareNum = item.get { share_num }.toString(),
                     onClick = {},
                     modifier = Modifier.weight(1f)
                 )
 
                 ThreadReplyBtn(
-                    replyNum = item.get { reply_num },
+                    replyNum = item.get { reply_num }.toString(),
                     onClick = { onClickReply(item.get()) },
                     modifier = Modifier.weight(1f)
                 )
 
                 ThreadAgreeBtn(
                     hasAgree = item.get { agree?.hasAgree == 1 },
-                    agreeNum = item.get { agree_num },
+                    agreeNum = item.get { agree_num }.toString(),
                     onClick = { onAgree(item.get()) },
                     modifier = Modifier.weight(1f)
                 )
@@ -1005,6 +1009,7 @@ private fun ActionBtnPlaceholder(
             modifier = Modifier
                 .placeholder(
                     visible = true,
+                    color = MaterialTheme.colors.surface,
                     highlight = PlaceholderHighlight.fade(),
                 ),
         )
@@ -1048,15 +1053,15 @@ fun VideoPlayer(
     title: String = "",
 ) {
     val context = LocalContext.current
-    val systemUiController = rememberSystemUiController()
+    val systemUIBarsTweaker = rememberSystemUIBarsTweaker()
     val videoPlayerController = rememberVideoPlayerController(
         source = VideoPlayerSource.Network(videoUrl),
         thumbnailUrl = thumbnailUrl,
         fullScreenModeChangedListener = object : OnFullScreenModeChangedListener {
             override fun onFullScreenModeChanged(isFullScreen: Boolean) {
                 Log.i("VideoPlayer", "onFullScreenModeChanged $isFullScreen")
-                systemUiController.isStatusBarVisible = !isFullScreen
-                systemUiController.isNavigationBarVisible = !isFullScreen
+                systemUIBarsTweaker.tweakStatusBarVisibility(!isFullScreen)
+                systemUIBarsTweaker.tweakNavigationBarVisibility(!isFullScreen)
                 if (isFullScreen) {
                     context.findActivity()?.requestedOrientation =
                         ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE

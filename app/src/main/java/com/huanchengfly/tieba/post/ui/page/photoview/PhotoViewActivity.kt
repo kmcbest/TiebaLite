@@ -42,7 +42,7 @@ import androidx.compose.ui.unit.sp
 import com.github.panpf.sketch.compose.rememberAsyncImageState
 import com.github.panpf.sketch.request.LoadState
 import com.github.panpf.zoomimage.SketchZoomAsyncImage
-import com.google.accompanist.systemuicontroller.SystemUiController
+import com.stoyanvuchev.systemuibarstweaker.SystemUIBarsTweaker
 import com.huanchengfly.tieba.post.R
 import com.huanchengfly.tieba.post.arch.BaseComposeActivityWithParcelable
 import com.huanchengfly.tieba.post.models.PhotoViewData
@@ -78,7 +78,7 @@ private fun ViewPhoto(
         }
         SketchZoomAsyncImage(
             imageUri = imageUri,
-            contentDescription = null,
+            contentDescription = stringResource(id = R.string.desc_image),
             modifier = Modifier.fillMaxSize(),
             onTap = onTap,
             imageState = state,
@@ -252,9 +252,11 @@ class PhotoViewActivity : BaseComposeActivityWithParcelable<PhotoViewData>() {
         }
     }
 
-  /*override fun onCreateContent(systemUiController: SystemUiController) {
-        systemUiController.isSystemBarsVisible = true
-    }*/
+    override fun onCreateContent(systemUIBarsTweaker: SystemUIBarsTweaker) {
+        systemUIBarsTweaker.tweakStatusBarVisibility(false)
+        systemUIBarsTweaker.tweakNavigationBarVisibility(false)
+    }
+
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
         return try {
             super.dispatchTouchEvent(ev)

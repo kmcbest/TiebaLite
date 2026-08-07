@@ -28,11 +28,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.zip
 import kotlinx.coroutines.launch
-import org.litepal.LitePal
-import org.litepal.LitePal.findAll
-import org.litepal.LitePal.where
-import org.litepal.extension.findAllAsync
-import org.litepal.extension.findFirst
+import kotlinx.coroutines.runBlocking
 import java.util.UUID
 
 @Stable
@@ -75,7 +71,7 @@ object AccountUtil {
             } else getAccountInfo(loginUser)
         }.getOrNull()
         mutableCurrentAccountState.value = account
-        mutableAllAccountsState.value = findAll(Account::class.java)
+        mutableAllAccountsState.value = runBlocking(Dispatchers.IO) { DatabaseUtil.getAllAccounts() }
     }
 
     @JvmStatic
@@ -88,25 +84,26 @@ object AccountUtil {
         return currentAccount?.getter()
     }
 
-    fun newAccount(uid: String, account: Account, callback: (Boolean) -> Unit) {
-        account.saveOrUpdateAsync("uid = ?", uid).listen {
-            mutableAllAccountsState.value = findAll(Account::class.java)
-            callback(it)
+    fun newAccount(uid: String, account: Account, callback: (Long) -> Unit) {
+        GlobalScope.launch(Dispatchers.IO) {
+            val newId = DatabaseUtil.upsertAccountByUid(account)
+            mutableAllAccountsState.value = DatabaseUtil.getAllAccounts()
+            callback(newId)
         }
     }
 
     private fun getAccountInfo(accountId: Int): Account {
-        return where("id = ?", accountId.toString()).findFirst(Account::class.java)
+        return runBlocking(Dispatchers.IO) { DatabaseUtil.getAccountById(accountId) } ?: Account()
     }
 
     @JvmStatic
     fun getAccountInfoByUid(uid: String): Account? {
-        return where("uid = ?", uid).findFirst<Account>()
+        return runBlocking(Dispatchers.IO) { DatabaseUtil.getAccountByUid(uid) }
     }
 
     @JvmStatic
     fun getAccountInfoByBduss(bduss: String): Account {
-        return where("bduss = ?", bduss).findFirst(Account::class.java)
+        return runBlocking(Dispatchers.IO) { DatabaseUtil.getAccountByBduss(bduss) } ?: Account()
     }
 
     @JvmStatic
@@ -158,13 +155,13 @@ object AccountUtil {
                     this.cookie = cookie ?: getBdussCookie(bduss)
                     updateAccount(this, loginBean)
                 } ?: Account(
-                    loginBean.user.id,
-                    loginBean.user.name,
-                    bduss,
-                    loginBean.anti.tbs,
-                    loginBean.user.portrait,
-                    sToken,
-                    cookie ?: getBdussCookie(bduss),
+                    uid = loginBean.user.id,
+                    name = loginBean.user.name,
+                    bduss = bduss,
+                    tbs = loginBean.anti.tbs,
+                    portrait = loginBean.user.portrait,
+                    sToken = sToken,
+                    cookie = cookie ?: getBdussCookie(bduss),
                 )
             }
             .zip(SofireUtils.fetchZid()) { account, zid ->
@@ -185,13 +182,8 @@ object AccountUtil {
                     }
             }
             .onEach { account ->
-                account.saveOrUpdateAsync("uid = ?", account.uid)
-                    .listen {
-                        LitePal.findAllAsync<Account>()
-                            .listen {
-                                mutableAllAccountsState.value = it
-                            }
-                    }
+                DatabaseUtil.upsertAccountByUid(account)
+                mutableAllAccountsState.value = DatabaseUtil.getAllAccounts()
             }
             .flowOn(Dispatchers.IO)
     }
@@ -211,10 +203,14 @@ object AccountUtil {
         val sToken = cookies["STOKEN"]
         if (bduss != null && sToken != null) {
             val account = getAccountInfoByBduss(bduss)
-            account.apply {
-                this.sToken = sToken
-                this.cookie = cookie
-            }.update(account.id.toLong())
+            runBlocking(Dispatchers.IO) {
+                DatabaseUtil.updateAccount(
+                    account.apply {
+                        this.sToken = sToken
+                        this.cookie = cookie
+                    }
+                )
+            }
             return true
         }
         return false
@@ -223,7 +219,7 @@ object AccountUtil {
     fun exit(context: Context) {
         var accounts = allAccounts
         var account = getLoginInfo() ?: return
-        account.delete()
+        runBlocking(Dispatchers.IO) { DatabaseUtil.deleteAccount(account) }
         CookieManager.getInstance().removeAllCookies(null)
         if (accounts.size > 1) {
             accounts = allAccounts

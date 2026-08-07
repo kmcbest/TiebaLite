@@ -24,7 +24,7 @@ import androidx.annotation.Keep
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
-import butterknife.ButterKnife
+import androidx.viewbinding.ViewBinding
 import com.gyf.immersionbar.ImmersionBar
 import com.huanchengfly.tieba.post.App
 import com.huanchengfly.tieba.post.App.Companion.INSTANCE
@@ -45,10 +45,13 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlin.coroutines.CoroutineContext
 
-abstract class BaseActivity : AppCompatActivity(), ExtraRefreshable, CoroutineScope {
+abstract class BaseActivity<VB : ViewBinding> : AppCompatActivity(), ExtraRefreshable, CoroutineScope {
+
     val job = Job()
     override val coroutineContext: CoroutineContext
         get() = Dispatchers.Main + job
+
+    protected var binding: VB? = null
 
     private var mTintToolbar: TintToolbar? = null
     private var oldTheme: String = ""
@@ -113,10 +116,11 @@ abstract class BaseActivity : AppCompatActivity(), ExtraRefreshable, CoroutineSc
         if (isNeedImmersionBar) {
             refreshStatusBarColor()
         }
-        if (getLayoutId() != -1) {
-            setContentView(getLayoutId())
-            ButterKnife.bind(this)
-        }
+    }
+
+    protected fun setViewBinding(binding: VB) {
+        this.binding = binding
+        setContentView(binding.root)
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -327,8 +331,6 @@ abstract class BaseActivity : AppCompatActivity(), ExtraRefreshable, CoroutineSc
                 mTarget.imageTintList = ColorStateList.valueOf(color)
             }
     }
-
-    open fun getLayoutId(): Int = -1
 
     fun launchIO(
         start: CoroutineStart = CoroutineStart.DEFAULT,

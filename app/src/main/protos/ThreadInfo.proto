@@ -20,6 +20,7 @@ import "VideoInfo.proto";
 import "Voice.proto";
 import "VoiceRoom.proto";
 import "ZhiBoInfoTW.proto";
+import "PollInfo.proto";
 
 message ThreadInfo {
   int64 id = 1;
@@ -49,6 +50,7 @@ message ThreadInfo {
   int64 authorId = 56;
   string pids = 61;
   ZhiBoInfoTW twzhibo_info = 72;
+  PollInfo poll_info = 74;
   optional VideoInfo videoInfo = 79;
   repeated PbContent richTitle = 111;
   repeated PbContent richAbstract = 112;

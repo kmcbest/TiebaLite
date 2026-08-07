@@ -9,6 +9,7 @@ import com.huanchengfly.tieba.post.arch.UiEvent
 import com.huanchengfly.tieba.post.arch.UiIntent
 import com.huanchengfly.tieba.post.arch.UiState
 import com.huanchengfly.tieba.post.models.database.History
+import com.huanchengfly.tieba.post.utils.DatabaseUtil
 import com.huanchengfly.tieba.post.utils.DateTimeUtils
 import com.huanchengfly.tieba.post.utils.HistoryUtil
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -24,8 +25,6 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.onStart
-import org.litepal.LitePal
-import org.litepal.extension.deleteAll
 import javax.inject.Inject
 
 abstract class HistoryListViewModel :
@@ -75,37 +74,46 @@ private class HistoryListPartialChangeProducer(val type: Int) :
 
     private fun produceDeleteAllPartialChange() = flowOf(HistoryListPartialChange.DeleteAll)
 
-    private fun produceRefreshPartialChange() =
-        HistoryUtil.getFlow(type, 0)
-            .map<List<History>, HistoryListPartialChange.Refresh> { histories ->
+    private fun produceRefreshPartialChange(): Flow<HistoryListPartialChange.Refresh> =
+        flow<HistoryListPartialChange.Refresh> {
+            val histories = HistoryUtil.get(type, 0)
+            emit(
                 HistoryListPartialChange.Refresh.Success(
-                    histories.filter { DateTimeUtils.isToday(it.timestamp) },
-                    histories.filterNot { DateTimeUtils.isToday(it.timestamp) },
-                    histories.size == HistoryUtil.PAGE_SIZE,
+                    todayHistoryData = histories.filter { DateTimeUtils.isToday(it.timestamp) },
+                    beforeHistoryData = histories.filterNot { DateTimeUtils.isToday(it.timestamp) },
+                    hasMore = histories.size == HistoryUtil.PAGE_SIZE,
                 )
-            }
-            .catch { HistoryListPartialChange.Refresh.Failure(it) }
+            )
+        }
+            .flowOn(Dispatchers.IO)
+            .catch { emit(HistoryListPartialChange.Refresh.Failure(it)) }
 
-    private fun HistoryListUiIntent.LoadMore.producePartialChange() =
-        HistoryUtil.getFlow(type, page)
-            .map<List<History>, HistoryListPartialChange.LoadMore> { histories ->
+    private fun HistoryListUiIntent.LoadMore.producePartialChange(): Flow<HistoryListPartialChange.LoadMore> =
+        flow<HistoryListPartialChange.LoadMore> {
+            val histories = HistoryUtil.get(type, page)
+            emit(
                 HistoryListPartialChange.LoadMore.Success(
-                    histories.filter { DateTimeUtils.isToday(it.timestamp) },
-                    histories.filterNot { DateTimeUtils.isToday(it.timestamp) },
-                    histories.size == HistoryUtil.PAGE_SIZE,
-                    page
+                    todayHistoryData = histories.filter { DateTimeUtils.isToday(it.timestamp) },
+                    beforeHistoryData = histories.filterNot { DateTimeUtils.isToday(it.timestamp) },
+                    hasMore = histories.size == HistoryUtil.PAGE_SIZE,
+                    currentPage = page
                 )
+            )
+        }
+            .onStart {
+                emit(HistoryListPartialChange.LoadMore.Start)
             }
-            .onStart { HistoryListPartialChange.LoadMore.Start }
-            .catch { HistoryListPartialChange.LoadMore.Failure(it) }
+            .flowOn(Dispatchers.IO)
+            .catch {
+                emit(HistoryListPartialChange.LoadMore.Failure(it))
+            }
 
     private fun HistoryListUiIntent.Delete.producePartialChange() =
-        flow { emit(LitePal.deleteAll<History>("id = ?", "$id")) }
+        flow<HistoryListPartialChange.Delete> {
+            DatabaseUtil.deleteHistoryById(id)
+            emit(HistoryListPartialChange.Delete.Success(id))
+        }
             .flowOn(Dispatchers.IO)
-            .map {
-                if (it > 0) HistoryListPartialChange.Delete.Success(id)
-                else HistoryListPartialChange.Delete.Failure(IllegalStateException("未知错误"))
-            }
             .catch { emit(HistoryListPartialChange.Delete.Failure(it)) }
 }
 

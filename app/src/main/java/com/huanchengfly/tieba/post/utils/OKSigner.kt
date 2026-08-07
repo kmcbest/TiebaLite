@@ -123,18 +123,18 @@ class SingleAccountSigner(
                 TiebaApi.getInstance().getForumListFlow()
             }
             .zip(
-                TiebaApi.getInstance().forumRecommendFlow()
-            ) { getForumListBean, forumRecommendBean ->
+                TiebaApi.getInstance().allForumGuideFlow()
+            ) { getForumListBean, forumGuideBean ->
                 val useMSign = context.appPreferences.oksignUseOfficialOksign
                 val mSignLevel = getForumListBean.level.toInt()
                 val mSignMax = getForumListBean.msignStepNum.toInt()
                 signData.addAll(
-                    forumRecommendBean.likeForum
-                        .filter { it.isSign != "1" }
+                    forumGuideBean.likeForum
+                        .filter { it.isSign != 1 }
                         .map {
                             SignDataBean(
                                 it.forumName,
-                                it.forumId,
+                                it.forumId.toString(),
                                 userName,
                                 tbs,
                                 it.levelId.toInt() >= mSignLevel && signData.size < mSignMax
@@ -194,7 +194,21 @@ class SingleAccountSigner(
                         }
                         result = true
                     }
-                    .flatMapConcat { signFlow(it) }
+                    .flatMapConcat {
+                        if (!context.appPreferences.oksignFailAutoStop) {
+                            signFlow(it).catch { e ->
+                                result = false
+                                lastFailure = e
+                                mProgressListener?.onFailure(
+                                    position,
+                                    totalCount,
+                                    e.getErrorCode(),
+                                    e.getErrorMessage()
+                                )
+                                delay(getSignDelay())
+                            }
+                        } else signFlow(it)
+                    }
             }
             .catch { e ->
                 result = false

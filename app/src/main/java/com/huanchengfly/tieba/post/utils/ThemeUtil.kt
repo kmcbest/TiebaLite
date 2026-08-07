@@ -99,7 +99,7 @@ object ThemeUtil {
     }
 
     private fun refreshUI(activity: Activity?) {
-        if (activity is BaseActivity) {
+        if (activity is BaseActivity<*>) {
             activity.refreshUIIfNeed()
             return
         }
@@ -320,7 +320,7 @@ object ThemeUtil {
     }
 
     fun setTranslucentThemeBackground(
-        activity: BaseActivity,
+        activity: BaseActivity<*>,
         view: View?,
         setFitsSystemWindow: Boolean = true,
         useCache: Boolean = false,
