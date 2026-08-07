@@ -29,6 +29,22 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x ./gradlew
 
+      - name: Cache Debug Keystore
+        uses: actions/cache@v4
+        with:
+          path: app/debug.keystore
+          key: tiebalite-debug-keystore-v1
+
+      - name: Ensure valid debug keystore
+        run: |
+          if [ -f "app/debug.keystore" ] && keytool -list -keystore app/debug.keystore -storepass android > /dev/null 2>&1; then
+            echo "Using valid cached debug.keystore"
+          else
+            echo "Generating new valid debug keystore..."
+            rm -f app/debug.keystore
+            keytool -genkeypair -v -keystore app/debug.keystore -storetype JKS -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          fi
+
       # 4️⃣ 清理旧构建并构建 Debug APK
       - name: Build Debug APK
         run: ./gradlew clean :app:assembleDebug
