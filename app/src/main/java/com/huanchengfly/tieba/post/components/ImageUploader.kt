@@ -101,101 +101,99 @@ class ImageUploader(
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
-suspend fun uploadSinglePicture(
-    filePath: String,
-    isOriginImage: Boolean = false,
-): UploadPictureResultBean {
-    // 先尝试只读取图片 bounds（不加载整个 Bitmap）来获取宽高
-    val option = BitmapFactory.Options().apply {
-        inJustDecodeBounds = true
-    }
-    BitmapFactory.decodeFile(filePath, option)
-    var width = option.outWidth
-    var height = option.outHeight
-
-    // 输出日志便于调试
-    android.util.Log.d("ImageUploader", "decode bounds: filePath=$filePath, boundsWidth=$width, boundsHeight=$height")
-
-    // 如果 bounds 宽或高无效 (<=0)，尝试 fallback 解码整个图片获取宽高
-    if (width <= 0 || height <= 0) {
-        android.util.Log.w("ImageUploader", "Bounds 无效，尝试 fallback 全图解码：$filePath")
-        val bitmap = BitmapFactory.decodeFile(filePath)
-        if (bitmap != null) {
-            width = bitmap.width
-            height = bitmap.height
-            android.util.Log.d("ImageUploader", "Fallback decode: width=$width, height=$height")
-            bitmap.recycle() // 释放内存
-        } else {
-            throw IllegalStateException("图片宽高不正确（bounds 和 fallback 均失败）: $filePath")
+    suspend fun uploadSinglePicture(
+        filePath: String,
+        isOriginImage: Boolean = false,
+    ): UploadPictureResultBean {
+        // 先尝试只读取图片 bounds（不加载整个 Bitmap）来获取宽高
+        val option = BitmapFactory.Options().apply {
+            inJustDecodeBounds = true
         }
-    }
+        BitmapFactory.decodeFile(filePath, option)
+        var width = option.outWidth
+        var height = option.outHeight
 
-    // 最终确认宽高有效，否则报错
-    if (width <= 0 || height <= 0) {
-        throw IllegalStateException("图片宽高不正确: $filePath, width=$width, height=$height")
-    }
+        Log.d("ImageUploader", "decode bounds: filePath=$filePath, boundsWidth=$width, boundsHeight=$height")
 
-    // 调用原来的压缩和上传逻辑
-    val file = compressImage(filePath, isOriginImage)
-    val fileLength = file.length()
-    val maxSize = if (isOriginImage) ORIGIN_IMAGE_MAX_SIZE else IMAGE_MAX_SIZE
-    check(fileLength <= maxSize) { "图片大小超过限制" }
-
-    val fileMd5 = MD5Util.toMd5(file)
-    val isMultipleChunkSize = fileLength % chunkSize == 0L
-    val totalChunkNum = fileLength / chunkSize + if (isMultipleChunkSize) 0 else 1
-    val picWatermarkType =
-        App.INSTANCE.appPreferences.picWatermarkType ?: PIC_WATER_TYPE_FORUM_NAME
-
-    val requestBodies = (0 until totalChunkNum).map { chunk ->
-        val isFinish = chunk == totalChunkNum - 1
-        val curChunkSize = if (isFinish) {
-            if (isMultipleChunkSize) {
-                chunkSize
+        // 如果 bounds 宽或高无效 (<=0)，尝试 fallback 解码整个图片获取宽高
+        if (width <= 0 || height <= 0) {
+            Log.w("ImageUploader", "Bounds 无效，尝试 fallback 全图解码: $filePath")
+            val bitmap = BitmapFactory.decodeFile(filePath)
+            if (bitmap != null) {
+                width = bitmap.width
+                height = bitmap.height
+                Log.d("ImageUploader", "Fallback decode: width=$width, height=$height")
+                bitmap.recycle()
             } else {
-                fileLength % chunkSize
-            }
-        } else {
-            chunkSize
-        }.toInt()
-        val chunkBytes = ByteArray(curChunkSize)
-        withContext(Dispatchers.IO) {
-            RandomAccessFile(file, "r").use {
-                it.seek(chunk * chunkSize.toLong())
-                it.read(chunkBytes)
+                throw IllegalStateException("图片宽高不正确（bounds 和 fallback 均失败）: $filePath")
             }
         }
-        buildMultipartBody(BOUNDARY) {
-            setType(MyMultipartBody.FORM)
-            addFormDataPart("alt", "json")
-            addFormDataPart("chunkNo", "${chunk + 1}")
-            if (forumName.isNotEmpty()) addFormDataPart("forum_name", forumName)
-            addFormDataPart("groupId", "1")
-            addFormDataPart("height", "$height")
-            addFormDataPart("isFinish", isFinish.booleanToString())
-            addFormDataPart("is_bjh", "0")
-            addFormDataPart("pic_water_type", picWatermarkType)
-            addFormDataPart("resourceId", "$fileMd5$chunkSize")
-            addFormDataPart("saveOrigin", isOriginImage.booleanToString())
-            addFormDataPart("size", "$fileLength")
-            if (forumName.isNotEmpty()) addFormDataPart("small_flow_fname", forumName)
-            addFormDataPart("width", "$width")
-            addFormDataPart("chunk", "file", chunkBytes.toRequestBody())
-        }
-    }
 
-    return requestBodies.asFlow()
-        .flatMapConcat { RetrofitTiebaApi.OFFICIAL_TIEBA_API.uploadPicture(it) }
-        .catch {
-            throw UploadPictureFailedException(it.getErrorCode(), it.getErrorMessage())
+        if (width <= 0 || height <= 0) {
+            throw IllegalStateException("图片宽高不正确: $filePath, width=$width, height=$height")
         }
-        .onCompletion {
+
+        val file = compressImage(filePath, isOriginImage)
+        val fileLength = file.length()
+        val maxSize = if (isOriginImage) ORIGIN_IMAGE_MAX_SIZE else IMAGE_MAX_SIZE
+        check(fileLength <= maxSize) { "图片大小超过限制 (${fileLength} > ${maxSize})" }
+
+        val fileMd5 = MD5Util.toMd5(file)
+        val isMultipleChunkSize = fileLength % chunkSize == 0L
+        val totalChunkNum = fileLength / chunkSize + if (isMultipleChunkSize) 0 else 1
+        val picWatermarkType =
+            App.INSTANCE.appPreferences.picWatermarkType ?: PIC_WATER_TYPE_FORUM_NAME
+
+        val requestBodies = (0 until totalChunkNum).map { chunk ->
+            val isFinish = chunk == totalChunkNum - 1
+            val curChunkSize = if (isFinish) {
+                if (isMultipleChunkSize) {
+                    chunkSize
+                } else {
+                    fileLength % chunkSize
+                }
+            } else {
+                chunkSize
+            }.toInt()
+            val chunkBytes = ByteArray(curChunkSize)
             withContext(Dispatchers.IO) {
-                file.delete()
+                RandomAccessFile(file, "r").use {
+                    it.seek(chunk * chunkSize.toLong())
+                    it.read(chunkBytes)
+                }
+            }
+            buildMultipartBody(BOUNDARY) {
+                setType(MyMultipartBody.FORM)
+                addFormDataPart("alt", "json")
+                addFormDataPart("chunkNo", "${chunk + 1}")
+                if (forumName.isNotEmpty()) addFormDataPart("forum_name", forumName)
+                addFormDataPart("groupId", "1")
+                addFormDataPart("height", "$height")
+                addFormDataPart("isFinish", isFinish.booleanToString())
+                addFormDataPart("is_bjh", "0")
+                addFormDataPart("pic_water_type", picWatermarkType)
+                addFormDataPart("resourceId", "$fileMd5$chunkSize")
+                addFormDataPart("saveOrigin", isOriginImage.booleanToString())
+                addFormDataPart("size", "$fileLength")
+                if (forumName.isNotEmpty()) addFormDataPart("small_flow_fname", forumName)
+                addFormDataPart("width", "$width")
+                addFormDataPart("chunk", "file", chunkBytes.toRequestBody())
             }
         }
-        .last()
-}
+
+        return requestBodies.asFlow()
+            .flatMapConcat { RetrofitTiebaApi.OFFICIAL_TIEBA_API.uploadPicture(it) }
+            .catch {
+                Log.e("ImageUploader", "Upload picture failed: code=${it.getErrorCode()}, msg=${it.getErrorMessage()}", it)
+                throw UploadPictureFailedException(it.getErrorCode(), it.getErrorMessage())
+            }
+            .onCompletion {
+                withContext(Dispatchers.IO) {
+                    file.delete()
+                }
+            }
+            .last()
+    }
 }
 
 class UploadPictureFailedException(

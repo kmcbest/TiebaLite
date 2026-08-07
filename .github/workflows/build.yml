@@ -3,9 +3,10 @@ name: Build TiebaLite APK (Debug)
 on:
   push:
     branches:
-      - main       # 或你常用的分支，比如 `master` / `develop`
-      - "feature/**"   # 可选：如果你在 feature 分支也想构建
-  workflow_dispatch:   # 允许手动触发
+      - main
+      - 4.0-dev
+      - "feature/**"
+  workflow_dispatch:
 
 jobs:
   build:

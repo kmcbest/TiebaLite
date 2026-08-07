@@ -166,22 +166,32 @@ class ReplyViewModel @Inject constructor() :
                 }
         }
 
-        private fun ReplyUiIntent.UploadImages.producePartialChange() =
-            ImageUploader(forumName)
-                .uploadImages(
-                    imageUris.map {
-                        FileUtil.getRealPathFromUri(
-                            App.INSTANCE,
-                            Uri.parse(it)
-                        )
-                    },
-                    isOriginImage
-                )
+        private fun ReplyUiIntent.UploadImages.producePartialChange(): Flow<ReplyPartialChange.UploadImages> {
+            val resolvedPaths = imageUris.mapNotNull { uriString ->
+                val uri = Uri.parse(uriString)
+                var path = FileUtil.getRealPathFromUri(App.INSTANCE, uri)
+                if (path.isEmpty() || !java.io.File(path).exists()) {
+                    val tempFile = FileUtil.getTempFileFromUri(App.INSTANCE, uri)
+                    path = tempFile?.absolutePath.orEmpty()
+                }
+                if (path.isEmpty()) {
+                    Log.e("ReplyViewModel", "Failed to resolve image URI to file path: $uriString")
+                }
+                path.takeIf { it.isNotEmpty() }
+            }
+
+            if (resolvedPaths.size != imageUris.size) {
+                Log.e("ReplyViewModel", "Some image URIs could not be resolved. Expected ${imageUris.size}, got ${resolvedPaths.size}")
+            }
+
+            return ImageUploader(forumName)
+                .uploadImages(resolvedPaths, isOriginImage)
                 .map<List<UploadPictureResultBean>, ReplyPartialChange.UploadImages> {
                     ReplyPartialChange.UploadImages.Success(it)
                 }
                 .onStart { emit(ReplyPartialChange.UploadImages.Start) }
                 .catch {
+                    Log.e("ReplyViewModel", "Upload images failed", it)
                     it.printStackTrace()
                     emit(
                         ReplyPartialChange.UploadImages.Failure(
@@ -190,6 +200,7 @@ class ReplyViewModel @Inject constructor() :
                         )
                     )
                 }
+        }
 
         private fun ReplyUiIntent.SwitchPanel.producePartialChange() =
             flowOf(ReplyPartialChange.SwitchPanel(panelType))

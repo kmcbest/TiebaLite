@@ -147,14 +147,39 @@ object FileUtil {
     }
 
     @JvmStatic
-    fun getRealPathFromUri(context: Context, contentUri: Uri?): String {
-        val proj = arrayOf(MediaStore.Images.Media.DATA)
-        context.contentResolver.query(contentUri!!, proj, null, null, null).use { cursor ->
-            if (cursor != null) {
-                val column_index = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATA)
-                cursor.moveToFirst()
-                return cursor.getString(column_index)
+    fun getTempFileFromUri(context: Context, contentUri: Uri?): File? {
+        if (contentUri == null) return null
+        return try {
+            val inputStream = context.contentResolver.openInputStream(contentUri) ?: return null
+            val tempFile = File.createTempFile("selected_img_", ".tmp", context.cacheDir)
+            tempFile.outputStream().use { output ->
+                inputStream.copyTo(output)
             }
+            tempFile
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    @JvmStatic
+    fun getRealPathFromUri(context: Context, contentUri: Uri?): String {
+        if (contentUri == null) return ""
+        try {
+            val proj = arrayOf(MediaStore.Images.Media.DATA)
+            context.contentResolver.query(contentUri, proj, null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val columnIndex = cursor.getColumnIndex(MediaStore.Images.Media.DATA)
+                    if (columnIndex != -1) {
+                        val path = cursor.getString(columnIndex)
+                        if (!path.isNullOrEmpty() && File(path).exists()) {
+                            return path
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
         return ""
     }
