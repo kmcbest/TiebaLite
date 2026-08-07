@@ -56,6 +56,15 @@ android {
         buildConfig = true
     }
     signingConfigs {
+        getByName("debug") {
+            val debugKeystoreFile = file("debug.keystore")
+            if (debugKeystoreFile.exists()) {
+                storeFile = debugKeystoreFile
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
+        }
         if (property.keystore.file.isNotBlank()) {
             create("config") {
                 storeFile = file(File(rootDir, property.keystore.file))
