@@ -30,7 +30,7 @@ fun isPhotoPickerAvailable(): Boolean {
     return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
         true
     } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-        getExtensionVersion(Build.VERSION_CODES.R) >= 2
+        runCatching { getExtensionVersion(Build.VERSION_CODES.R) >= 2 }.getOrDefault(false)
     } else {
         false
     }

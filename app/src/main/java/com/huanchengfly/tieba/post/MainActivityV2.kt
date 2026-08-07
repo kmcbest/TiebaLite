@@ -460,10 +460,34 @@ class MainActivityV2 : BaseComposeActivity() {
             if (appPreferences.autoSign && !isIgnoringBatteryOptimizations() && !appPreferences.ignoreBatteryOptimizationsDialog) {
                 okSignAlertDialogState.show()
             }
-            onGlobalEvent<GlobalEvent.StartSelectImages> {
-                pickMediasLauncher.launch(
-                    PickMediasRequest(it.id, it.maxCount, it.mediaType)
-                )
+            onGlobalEvent<GlobalEvent.StartSelectImages> { event ->
+                val startPick = {
+                    pickMediasLauncher.launch(
+                        PickMediasRequest(event.id, event.maxCount, event.mediaType)
+                    )
+                }
+                if (com.huanchengfly.tieba.post.utils.shouldUsePhotoPicker()) {
+                    startPick()
+                } else {
+                    requestPermission {
+                        unchecked = true
+                        permissions = if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+                            listOf(
+                                PermissionUtils.READ_EXTERNAL_STORAGE,
+                                PermissionUtils.WRITE_EXTERNAL_STORAGE
+                            )
+                        } else if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+                            listOf(
+                                PermissionUtils.READ_EXTERNAL_STORAGE
+                            )
+                        } else {
+                            listOf(PermissionUtils.READ_MEDIA_IMAGES)
+                        }
+                        description = getString(R.string.tip_permission_storage)
+                        onGranted = startPick
+                        onDenied = { toastShort(R.string.toast_no_permission_insert_photo) }
+                    }
+                }
             }
             onGlobalEvent<GlobalEvent.StartActivityForResult> {
                 mLaunchActivityForResultLauncher.launch(
