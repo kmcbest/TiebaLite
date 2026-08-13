@@ -166,6 +166,7 @@ class ImageUploader(
                 setType(MyMultipartBody.FORM)
                 addFormDataPart("alt", "json")
                 addFormDataPart("chunkNo", "${chunk + 1}")
+                if (forumName.isNotEmpty()) addFormDataPart("forum_name", forumName)
                 addFormDataPart("groupId", "1")
                 addFormDataPart("height", "$height")
                 addFormDataPart("isFinish", isFinish.booleanToString())
@@ -174,13 +175,9 @@ class ImageUploader(
                 addFormDataPart("resourceId", "$fileMd5$chunkSize")
                 addFormDataPart("saveOrigin", isOriginImage.booleanToString())
                 addFormDataPart("size", "$fileLength")
+                if (forumName.isNotEmpty()) addFormDataPart("small_flow_fname", forumName)
                 addFormDataPart("width", "$width")
                 addFormDataPart("chunk", "file", chunkBytes.toRequestBody())
-
-                if (picWatermarkType == PIC_WATER_TYPE_FORUM_NAME && forumName.isNotEmpty()) {
-                    addFormDataPart("forum_name", forumName)
-                    addFormDataPart("small_flow_fname", forumName)
-                }
             }
         }
 
