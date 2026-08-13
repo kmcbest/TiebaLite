@@ -45,24 +45,24 @@ jobs:
             keytool -genkeypair -v -keystore app/debug.keystore -storetype JKS -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
           fi
 
-      # 4️⃣ 清理旧构建并构建 Debug APK
-      - name: Build Debug APK
-        run: ./gradlew clean :app:assembleDebug
+      # 4️⃣ 清理旧构建并构建 Release APK
+      - name: Build Release APK
+        run: ./gradlew clean :app:assembleRelease
 
-      # 5️⃣ 列出 debug 目录下的文件
-      - name: List debug APK files
-        run: ls -R app/build/outputs/apk/debug
+      # 5️⃣ 列出 release 目录下的文件
+      - name: List release APK files
+        run: ls -R app/build/outputs/apk/release
 
       # 6️⃣ 打印 APK 绝对路径
-      - name: Print debug APK absolute path
+      - name: Print release APK absolute path
         run: |
-          for f in app/build/outputs/apk/debug/*.apk; do
-            echo "Debug APK path: $(realpath "$f")"
+          for f in app/build/outputs/apk/release/*.apk; do
+            echo "Release APK path: $(realpath "$f")"
           done
 
-      # 7️⃣ 上传 Debug APK 到 artifact
-      - name: Upload Debug APK
+      # 7️⃣ 上传 Release APK 到 artifact
+      - name: Upload Release APK
         uses: actions/upload-artifact@v4
         with:
-          name: tieba-lite-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
+          name: tieba-lite-release-apk
+          path: app/build/outputs/apk/release/*.apk
