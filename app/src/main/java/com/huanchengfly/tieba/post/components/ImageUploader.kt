@@ -144,6 +144,10 @@ class ImageUploader(
         val picWatermarkType =
             App.INSTANCE.appPreferences.picWatermarkType ?: PIC_WATER_TYPE_FORUM_NAME
 
+        if (picWatermarkType == PIC_WATER_TYPE_NO) {
+            return uploadSinglePictureWeb(filePath, isOriginImage)
+        }
+
         val requestBodies = (0 until totalChunkNum).map { chunk ->
             val isFinish = chunk == totalChunkNum - 1
             val curChunkSize = if (isFinish) {
@@ -193,6 +197,49 @@ class ImageUploader(
                 }
             }
             .last()
+    }
+
+    private suspend fun uploadSinglePictureWeb(
+        filePath: String,
+        isOriginImage: Boolean
+    ): UploadPictureResultBean {
+        val file = compressImage(filePath, isOriginImage)
+        try {
+            val fileBytes = withContext(Dispatchers.IO) { file.readBytes() }
+            val base64Str = android.util.Base64.encodeToString(fileBytes, android.util.Base64.NO_WRAP)
+            val call = RetrofitTiebaApi.WEB_TIEBA_API.webUploadPic(base64Str)
+            val response = withContext(Dispatchers.IO) { call.execute() }
+            val webBean = response.body()
+            if (webBean != null && !webBean.imageInfo.isNullOrEmpty()) {
+                val infoStr = webBean.imageInfo
+                Log.i("ImageUploader", "webUploadPic success: imageInfo=$infoStr")
+                val parts = infoStr.trim('#', '(', ')').split(",")
+                val picId = if (parts.size >= 2) parts[1] else infoStr
+                val imgWidth = if (parts.size >= 3) parts[2] else "800"
+                val imgHeight = if (parts.size >= 4) parts[3] else "600"
+
+                return UploadPictureResultBean(
+                    errorCode = "0",
+                    errorMsg = "",
+                    chunkNo = "1",
+                    picId = picId,
+                    picInfo = com.huanchengfly.tieba.post.api.models.PicInfo(
+                        originPic = com.huanchengfly.tieba.post.api.models.PicInfoItem(imgWidth, imgHeight, "png", ""),
+                        bigPic = com.huanchengfly.tieba.post.api.models.PicInfoItem(imgWidth, imgHeight, "png", ""),
+                        smallPic = com.huanchengfly.tieba.post.api.models.PicInfoItem(imgWidth, imgHeight, "png", "")
+                    )
+                )
+            } else {
+                val errorMsg = webBean?.errorMsg ?: "Web 上传图片失败"
+                throw UploadPictureFailedException(-1, errorMsg)
+            }
+        } catch (e: Exception) {
+            Log.e("ImageUploader", "uploadSinglePictureWeb failed", e)
+            if (e is TiebaException) throw e
+            throw UploadPictureFailedException(-1, e.message ?: "Web 上传图片异常")
+        } finally {
+            withContext(Dispatchers.IO) { file.delete() }
+        }
     }
 }
 
