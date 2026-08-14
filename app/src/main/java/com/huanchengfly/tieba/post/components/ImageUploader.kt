@@ -210,13 +210,17 @@ class ImageUploader(
             val call = RetrofitTiebaApi.WEB_TIEBA_API.webUploadPic(base64Str)
             val response = withContext(Dispatchers.IO) { call.execute() }
             val webBean = response.body()
-            if (webBean != null && !webBean.imageInfo.isNullOrEmpty()) {
-                val infoStr = webBean.imageInfo
-                Log.i("ImageUploader", "webUploadPic success: imageInfo=$infoStr")
-                val parts = infoStr.trim('#', '(', ')').split(",")
-                val picId = if (parts.size >= 2) parts[1] else infoStr
-                val imgWidth = if (parts.size >= 3) parts[2] else "800"
-                val imgHeight = if (parts.size >= 4) parts[3] else "600"
+            if (webBean != null && (!webBean.imageInfo.isNullOrEmpty() || !webBean.imageSrc.isNullOrEmpty())) {
+                val infoStr = webBean.imageInfo.orEmpty().trim('#', '(', ')')
+                val parts = infoStr.split(",")
+                val srcUrl = webBean.imageSrc.orEmpty().ifEmpty { webBean.imageBaseSrc.orEmpty() }
+                val rawPicId = srcUrl.substringAfterLast('/').substringBeforeLast('.')
+                val picId = rawPicId.ifEmpty { if (parts.size >= 2) parts[1] else infoStr }
+
+                val imgWidth = if (parts.isNotEmpty() && parts[0].all { it.isDigit() }) parts[0] else "800"
+                val imgHeight = if (parts.size >= 2 && parts[1].all { it.isDigit() }) parts[1] else "600"
+
+                Log.i("ImageUploader", "webUploadPic success: picId=$picId, width=$imgWidth, height=$imgHeight, imageSrc=$srcUrl, imageInfo=$infoStr")
 
                 return UploadPictureResultBean(
                     errorCode = "0",
