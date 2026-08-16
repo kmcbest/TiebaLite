@@ -166,22 +166,31 @@ class ImageUploader(
                 setType(MyMultipartBody.FORM)
                 addFormDataPart("alt", "json")
                 addFormDataPart("chunkNo", "${chunk + 1}")
-                if (forumName.isNotEmpty() && picWatermarkType == PIC_WATER_TYPE_FORUM_NAME) {
-                    addFormDataPart("forum_name", forumName)
-                }
                 addFormDataPart("groupId", "1")
                 addFormDataPart("height", "$height")
                 addFormDataPart("isFinish", isFinish.booleanToString())
                 addFormDataPart("is_bjh", "0")
-                addFormDataPart("pic_water_type", picWatermarkType)
                 addFormDataPart("resourceId", "$fileMd5$chunkSize")
                 addFormDataPart("saveOrigin", (isOriginImage || picWatermarkType == PIC_WATER_TYPE_NO).booleanToString())
                 addFormDataPart("size", "$fileLength")
-                if (forumName.isNotEmpty() && picWatermarkType == PIC_WATER_TYPE_FORUM_NAME) {
-                    addFormDataPart("small_flow_fname", forumName)
-                }
                 addFormDataPart("width", "$width")
                 addFormDataPart("chunk", "file", chunkBytes.toRequestBody())
+
+                when (picWatermarkType) {
+                    PIC_WATER_TYPE_NO -> {
+                        addFormDataPart("pic_water_type", "-1")
+                    }
+                    PIC_WATER_TYPE_USER_NAME -> {
+                        addFormDataPart("pic_water_type", "0")
+                    }
+                    PIC_WATER_TYPE_FORUM_NAME -> {
+                        addFormDataPart("pic_water_type", "2")
+                        if (forumName.isNotEmpty()) {
+                            addFormDataPart("forum_name", forumName)
+                            addFormDataPart("small_flow_fname", forumName)
+                        }
+                    }
+                }
             }
         }
 
