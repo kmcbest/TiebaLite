@@ -80,4 +80,53 @@ object AddPostRepository {
                     }
                 }
             }
+
+    fun webReply(
+        content: String,
+        forumId: Long,
+        forumName: String,
+        threadId: Long,
+        tbs: String,
+        webImgInfo: String,
+        postId: Long? = null,
+        subPostId: Long? = null,
+    ): Flow<com.huanchengfly.tieba.post.api.models.WebReplyResultBean> = kotlinx.coroutines.flow.flow {
+        val nickName = com.huanchengfly.tieba.post.utils.AccountUtil.getAccountInfo { name } ?: ""
+        val call = com.huanchengfly.tieba.post.api.retrofit.RetrofitTiebaApi.WEB_TIEBA_API.webReply(
+            content = content,
+            imgInfo = webImgInfo,
+            forumId = forumId.toString(),
+            forumName = forumName,
+            tbs = tbs,
+            threadId = threadId.toString(),
+            nickName = nickName,
+            postId = postId?.toString(),
+            replyPostId = subPostId?.toString(),
+            bsk = "",
+            referer = "https://tieba.baidu.com/p/$threadId?lp=5028&mo_device=1&is_jingpost=0&pn=1&"
+        )
+        val response = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { call.execute() }
+        val body = response.body() ?: throw com.huanchengfly.tieba.post.api.retrofit.exception.TiebaUnknownException
+        if (body.errorCode != 0) {
+            throw com.huanchengfly.tieba.post.api.retrofit.exception.TiebaException(body.errorMsg ?: "回帖失败")
+        }
+        emit(body)
+    }.onEach {
+        val newPostId = it.data?.pid ?: 0L
+        GlobalScope.launch {
+            if (postId != null) {
+                emitGlobalEvent(
+                    GlobalEvent.ReplySuccess(
+                        threadId,
+                        postId,
+                        postId,
+                        subPostId,
+                        newPostId
+                    )
+                )
+            } else {
+                emitGlobalEvent(GlobalEvent.ReplySuccess(threadId, newPostId))
+            }
+        }
+    }
 }

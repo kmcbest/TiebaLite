@@ -141,6 +141,33 @@ class ReplyViewModel @Inject constructor() :
                         )
                     }
             }
+            if (!webImgInfo.isNullOrEmpty()) {
+                return AddPostRepository
+                    .webReply(
+                        content,
+                        forumId,
+                        forumName,
+                        threadId,
+                        tbs,
+                        webImgInfo = webImgInfo,
+                        postId = postId,
+                        subPostId = subPostId
+                    )
+                    .map<com.huanchengfly.tieba.post.api.models.WebReplyResultBean, ReplyPartialChange.Send> {
+                        ReplyPartialChange.Send.Success(
+                            threadId = it.data?.tid?.toString().orEmpty(),
+                            postId = it.data?.pid?.toString().orEmpty(),
+                            expInc = ""
+                        )
+                    }
+                    .onStart { emit(ReplyPartialChange.Send.Start) }
+                    .catch {
+                        Log.i("ReplyViewModel", "webReply failure: ${it.message}")
+                        it.printStackTrace()
+                        emit(ReplyPartialChange.Send.Failure(it.getErrorCode(), it.getErrorMessage()))
+                    }
+            }
+
             return AddPostRepository
                 .addPost(
                     content,
@@ -254,6 +281,7 @@ sealed interface ReplyUiIntent : UiIntent {
         val postId: Long? = null,
         val subPostId: Long? = null,
         val replyUserId: Long? = null,
+        val webImgInfo: String? = null,
     ) : ReplyUiIntent
 
 

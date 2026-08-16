@@ -321,23 +321,42 @@ internal fun ReplyPageContent(
     viewModel.onEvent<ReplyUiEvent.UploadSuccess> {
         if (waitUploadSuccessToSend) {
             waitUploadSuccessToSend = false
-            val imageContent = it.resultList
-                .joinToString("\n") { image ->
-                    "#(pic,${image.picId ?: 0},${image.picInfo?.originPic?.width ?: 0},${image.picInfo?.originPic?.height ?: 0})"
-                }
-            viewModel.send(
-                ReplyUiIntent.Send(
-                    "${getText()}\n$imageContent",
-                    forumId,
-                    forumName,
-                    threadId,
-                    curTbs,
-                    title = threadTitle.takeIf { isTopicThread },
-                    postId,
-                    subPostId,
-                    replyUserId,
+            val hasWebImages = it.resultList.any { image -> image.picId == "WEB_UPLOAD" }
+            if (hasWebImages) {
+                val webImgInfo = it.resultList.mapNotNull { image -> image.resourceId }.joinToString(",")
+                viewModel.send(
+                    ReplyUiIntent.Send(
+                        content = getText(),
+                        forumId = forumId,
+                        forumName = forumName,
+                        threadId = threadId,
+                        tbs = curTbs,
+                        title = threadTitle.takeIf { isTopicThread },
+                        postId = postId,
+                        subPostId = subPostId,
+                        replyUserId = replyUserId,
+                        webImgInfo = webImgInfo
+                    )
                 )
-            )
+            } else {
+                val imageContent = it.resultList
+                    .joinToString("\n") { image ->
+                        "#(pic,${image.picId ?: 0},${image.picInfo?.originPic?.width ?: 0},${image.picInfo?.originPic?.height ?: 0})"
+                    }
+                viewModel.send(
+                    ReplyUiIntent.Send(
+                        content = "${getText()}\n$imageContent",
+                        forumId = forumId,
+                        forumName = forumName,
+                        threadId = threadId,
+                        tbs = curTbs,
+                        title = threadTitle.takeIf { isTopicThread },
+                        postId = postId,
+                        subPostId = subPostId,
+                        replyUserId = replyUserId,
+                    )
+                )
+            }
         }
     }
 

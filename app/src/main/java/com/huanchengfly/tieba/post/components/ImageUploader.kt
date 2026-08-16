@@ -144,6 +144,10 @@ class ImageUploader(
         val picWatermarkType =
             App.INSTANCE.appPreferences.picWatermarkType ?: PIC_WATER_TYPE_FORUM_NAME
 
+        if (picWatermarkType == PIC_WATER_TYPE_NO) {
+            return uploadSinglePictureWeb(filePath, isOriginImage)
+        }
+
         val requestBodies = (0 until totalChunkNum).map { chunk ->
             val isFinish = chunk == totalChunkNum - 1
             val curChunkSize = if (isFinish) {
@@ -171,19 +175,16 @@ class ImageUploader(
                 addFormDataPart("isFinish", isFinish.booleanToString())
                 addFormDataPart("is_bjh", "0")
                 addFormDataPart("resourceId", "$fileMd5$chunkSize")
-                addFormDataPart("saveOrigin", (isOriginImage || picWatermarkType == PIC_WATER_TYPE_NO).booleanToString())
+                addFormDataPart("saveOrigin", isOriginImage.booleanToString())
                 addFormDataPart("size", "$fileLength")
                 addFormDataPart("width", "$width")
                 addFormDataPart("chunk", "file", chunkBytes.toRequestBody())
 
                 when (picWatermarkType) {
-                    PIC_WATER_TYPE_NO -> {
-                        addFormDataPart("pic_water_type", "-1")
-                    }
                     PIC_WATER_TYPE_USER_NAME -> {
                         addFormDataPart("pic_water_type", "0")
                     }
-                    PIC_WATER_TYPE_FORUM_NAME -> {
+                    else -> {
                         addFormDataPart("pic_water_type", "2")
                         if (forumName.isNotEmpty()) {
                             addFormDataPart("forum_name", forumName)
@@ -206,6 +207,40 @@ class ImageUploader(
                 }
             }
             .last()
+    }
+
+    private suspend fun uploadSinglePictureWeb(
+        filePath: String,
+        isOriginImage: Boolean
+    ): UploadPictureResultBean {
+        val file = compressImage(filePath, isOriginImage)
+        try {
+            val fileBytes = withContext(Dispatchers.IO) { file.readBytes() }
+            val base64Str = android.util.Base64.encodeToString(fileBytes, android.util.Base64.NO_WRAP)
+            val call = RetrofitTiebaApi.WEB_TIEBA_API.webUploadPic(base64Str)
+            val response = withContext(Dispatchers.IO) { call.execute() }
+            val webBean = response.body()
+            if (webBean != null && !webBean.imageInfo.isNullOrEmpty()) {
+                val imgInfo = webBean.imageInfo.orEmpty()
+                Log.i("ImageUploader", "webUploadPic success: imageInfo=$imgInfo")
+                return UploadPictureResultBean(
+                    errorCode = "0",
+                    errorMsg = "",
+                    resourceId = imgInfo,
+                    chunkNo = "1",
+                    picId = "WEB_UPLOAD"
+                )
+            } else {
+                val errorMsg = webBean?.errorMsg ?: "Web 上传图片失败"
+                throw UploadPictureFailedException(-1, errorMsg)
+            }
+        } catch (e: Exception) {
+            Log.e("ImageUploader", "uploadSinglePictureWeb failed", e)
+            if (e is TiebaException) throw e
+            throw UploadPictureFailedException(-1, e.message ?: "Web 上传图片异常")
+        } finally {
+            withContext(Dispatchers.IO) { file.delete() }
+        }
     }
 }
 
