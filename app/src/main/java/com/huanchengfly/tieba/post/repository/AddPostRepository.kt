@@ -108,7 +108,7 @@ object AddPostRepository {
         val response = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { call.execute() }
         val body = response.body() ?: throw com.huanchengfly.tieba.post.api.retrofit.exception.TiebaUnknownException
         if (body.errorCode != 0) {
-            throw com.huanchengfly.tieba.post.api.retrofit.exception.TiebaException(body.errorMsg ?: "回帖失败")
+            throw com.huanchengfly.tieba.post.api.retrofit.exception.TiebaLocalException(body.errorCode, body.errorMsg ?: "回帖失败")
         }
         emit(body)
     }.onEach {
