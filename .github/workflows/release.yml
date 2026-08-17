@@ -1,0 +1,101 @@
+name: Publish GitHub Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Release Tag (版本标签，如 v4.0.0-beta.6)'
+        required: true
+        type: string
+      release_title:
+        description: 'Release Title (发布标题，留空则默认使用 Tag 名称)'
+        required: false
+        type: string
+      release_notes:
+        description: 'Release Notes (更新说明，留空则由 GitHub 自动生成)'
+        required: false
+        type: string
+      is_prerelease:
+        description: 'Mark as Pre-release (标记为预发布版本)'
+        required: false
+        type: boolean
+        default: false
+      is_draft:
+        description: 'Save as Draft (保存为草稿)'
+        required: false
+        type: boolean
+        default: false
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'zulu'
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x ./gradlew
+
+      - name: Cache Debug Keystore
+        uses: actions/cache@v4
+        with:
+          path: app/debug.keystore
+          key: tiebalite-debug-keystore-v1
+
+      - name: Ensure valid debug keystore
+        run: |
+          if [ -f "app/debug.keystore" ] && keytool -list -keystore app/debug.keystore -storepass android > /dev/null 2>&1; then
+            echo "Using valid cached debug.keystore"
+          else
+            echo "Generating new valid debug keystore..."
+            rm -f app/debug.keystore
+            keytool -genkeypair -v -keystore app/debug.keystore -storetype JKS -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          fi
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-cleanup: always
+
+      - name: Build Release APK
+        run: ./gradlew clean :app:assembleRelease
+
+      - name: Determine Tag and Title
+        id: release_info
+        run: |
+          TAG="${{ github.event.inputs.tag_name }}"
+          if [ -z "$TAG" ]; then
+            TAG="${GITHUB_REF_NAME}"
+          fi
+          TITLE="${{ github.event.inputs.release_title }}"
+          if [ -z "$TITLE" ]; then
+            TITLE="$TAG"
+          fi
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "title=$TITLE" >> $GITHUB_OUTPUT
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release_info.outputs.tag }}
+          name: ${{ steps.release_info.outputs.title }}
+          body: ${{ github.event.inputs.release_notes }}
+          generate_release_notes: ${{ github.event.inputs.release_notes == '' }}
+          files: app/build/outputs/apk/release/*.apk
+          draft: ${{ github.event.inputs.is_draft || false }}
+          prerelease: ${{ github.event.inputs.is_prerelease || false }}
