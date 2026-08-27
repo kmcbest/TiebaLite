@@ -48,6 +48,7 @@ class NotifyJobService : JobService() {
                 notificationManager!!.createNotificationChannelGroup(channelGroup)
                 createChannel(CHANNEL_REPLY, CHANNEL_REPLY_NAME)
                 createChannel(CHANNEL_AT, CHANNEL_AT_NAME)
+                createChannel(CHANNEL_AGREE, CHANNEL_AGREE_NAME)
             }
         }
         TiebaApi.getInstance().msg().enqueue(object : Callback<MsgBean> {
@@ -103,6 +104,26 @@ class NotifyJobService : JobService() {
                             Intent(ACTION_VIEW, Uri.parse("tblite://notifications/1"))
                         )
                     }
+                    val agreeNum = msgBean.message?.getAgreeNum() ?: 0
+                    if (agreeNum > 0) {
+                        total += agreeNum
+                        sendBroadcast(
+                            Intent()
+                                .setAction(ACTION_NEW_MESSAGE)
+                                .putExtra("channel", CHANNEL_AGREE)
+                                .putExtra("count", agreeNum)
+                        )
+                        updateNotification(
+                            getString(
+                                R.string.tips_message_agree,
+                                agreeNum.toString()
+                            ),
+                            ID_AGREE,
+                            CHANNEL_AGREE,
+                            CHANNEL_AGREE_NAME,
+                            Intent(ACTION_VIEW, Uri.parse("tblite://notifications/2"))
+                        )
+                    }
                     sendBroadcast(
                         Intent()
                             .setAction(ACTION_NEW_MESSAGE)
@@ -154,9 +175,12 @@ class NotifyJobService : JobService() {
         const val CHANNEL_GROUP = "20"
         const val CHANNEL_AT = "3"
         const val CHANNEL_AT_NAME = "提到我的"
+        const val CHANNEL_AGREE = "4"
+        const val CHANNEL_AGREE_NAME = "赞过我的"
         const val CHANNEL_TOTAL = "total"
         const val ID_REPLY = 20
         const val ID_AT = 21
+        const val ID_AGREE = 22
         private const val CHANNEL_GROUP_NAME = "消息通知"
         private const val CHANNEL_REPLY = "2"
         private const val CHANNEL_REPLY_NAME = "回复我的"

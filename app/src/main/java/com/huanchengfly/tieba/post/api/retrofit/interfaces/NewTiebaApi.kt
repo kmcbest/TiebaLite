@@ -103,4 +103,18 @@ interface NewTiebaApi {
     fun agreeMe(
         @Field("pn") page: Int = 0
     ): Call<MessageListBean>
+
+    @Headers("${Header.FORCE_LOGIN}: ${Header.FORCE_LOGIN_TRUE}")
+    @POST("/c/u/feed/agreeme")
+    @FormUrlEncoded
+    fun agreeMeAsync(
+        @Field("pn") page: Int = 0
+    ): Deferred<ApiResult<MessageListBean>>
+
+    @Headers("${Header.FORCE_LOGIN}: ${Header.FORCE_LOGIN_TRUE}")
+    @POST("/c/u/feed/agreeme")
+    @FormUrlEncoded
+    fun agreeMeFlow(
+        @Field("pn") page: Int = 0
+    ): Flow<MessageListBean>
 }

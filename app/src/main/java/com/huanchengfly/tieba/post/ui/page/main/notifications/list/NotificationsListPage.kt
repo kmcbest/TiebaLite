@@ -8,6 +8,9 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.items
+import android.widget.Toast
+import androidx.compose.foundation.background
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.ExperimentalMaterialApi
@@ -22,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.huanchengfly.tieba.post.R
@@ -44,20 +48,23 @@ import com.huanchengfly.tieba.post.ui.widgets.compose.MyLazyColumn
 import com.huanchengfly.tieba.post.ui.widgets.compose.Sizes
 import com.huanchengfly.tieba.post.ui.widgets.compose.UserHeader
 import com.huanchengfly.tieba.post.ui.widgets.compose.debounceClickable
+import com.huanchengfly.tieba.post.utils.AgreeDebugUtil
 import com.huanchengfly.tieba.post.utils.DateTimeUtils
 import com.huanchengfly.tieba.post.utils.StringUtil
+import com.huanchengfly.tieba.post.utils.TiebaUtil
 import kotlinx.collections.immutable.persistentListOf
 
 @OptIn(ExperimentalMaterialApi::class)
 @Composable
 fun NotificationsListPage(
     type: NotificationsType,
-    viewModel: NotificationsListViewModel = when (type) {
-        NotificationsType.ReplyMe -> pageViewModel<NotificationsListUiIntent, ReplyMeListViewModel>()
-        NotificationsType.AtMe -> pageViewModel<NotificationsListUiIntent, AtMeListViewModel>()
-    }
 ) {
-    LazyLoad(loaded = viewModel.initialized) {
+    val viewModel: NotificationsListViewModel = when (type) {
+        NotificationsType.ReplyMe -> pageViewModel<NotificationsListUiIntent, ReplyMeListViewModel>(key = "ReplyMe")
+        NotificationsType.AtMe -> pageViewModel<NotificationsListUiIntent, AtMeListViewModel>(key = "AtMe")
+        NotificationsType.AgreeMe -> pageViewModel<NotificationsListUiIntent, AgreeMeListViewModel>(key = "AgreeMe")
+    }
+    LazyLoad(key = type, loaded = viewModel.initialized) {
         viewModel.send(NotificationsListUiIntent.Refresh)
         viewModel.initialized = true
     }
@@ -101,10 +108,13 @@ fun NotificationsListPage(
                 contentPadding = PaddingValues(vertical = 4.dp),
                 state = lazyListState,
             ) {
-                items(
+                itemsIndexed(
                     items = data,
-                    key = { "${it.info.postId}_${it.info.replyer?.id}_${it.info.time}" },
-                ) { (info, blocked) ->
+                    key = { index, (info, _) ->
+                        val rep = info.getEffectiveReplyer()
+                        "${index}_${info.getEffectivePostId()}_${rep?.id}_${info.getEffectiveTime()}"
+                    },
+                ) { _, (info, blocked) ->
                     Container {
                         BlockableContent(
                             blocked = blocked,
@@ -121,70 +131,94 @@ fun NotificationsListPage(
                             Column(
                                 modifier = Modifier
                                     .debounceClickable(onClick =  {
-                                        if (info.isFloor == "1") {
-                                            navigator.navigate(
-                                                SubPostsPageDestination(
-                                                    threadId = info.threadId!!.toLong(),
-                                                    //postId = if (info.quotePid != null) info.quotePid.toLong() else 0,
-                                                    //quotePid引用不确定，可能为postId，也可能未subPostId,导致子楼加载失败或者子回复异常
-                                                    //先传0，在子楼页面获取正确的postId
-                                                    postId = 0,
-                                                    subPostId = info.postId!!.toLong(),
-                                                    loadFromSubPost = true
+                                        val tid = info.getEffectiveThreadId()?.toLongOrNull()
+                                        val pid = info.getEffectivePostId()?.toLongOrNull()
+                                        if (tid != null && tid > 0) {
+                                            if (info.isFloor == "1" && pid != null && pid > 0) {
+                                                navigator.navigate(
+                                                    SubPostsPageDestination(
+                                                        threadId = tid,
+                                                        postId = 0,
+                                                        subPostId = pid,
+                                                        loadFromSubPost = true
+                                                    )
                                                 )
-                                            )
-                                        } else {
-                                            navigator.navigate(
-                                                ThreadPageDestination(
-                                                    threadId = info.threadId!!.toLong(),
-                                                    postId = info.postId!!.toLong()
+                                            } else {
+                                                navigator.navigate(
+                                                    ThreadPageDestination(
+                                                        threadId = tid,
+                                                        postId = pid ?: 0
+                                                    )
                                                 )
-                                            )
+                                            }
                                         }
                                     })
                                     .padding(horizontal = 16.dp, vertical = 12.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                if (info.replyer != null) {
+                                val replyer = info.getEffectiveReplyer()
+                                if (replyer != null) {
                                     UserHeader(
                                         avatar = {
                                             Avatar(
-                                                data = StringUtil.getAvatarUrl(info.replyer.portrait),
+                                                data = StringUtil.getAvatarUrl(replyer.portrait),
                                                 size = Sizes.Small,
                                                 contentDescription = null
                                             )
                                         },
                                         name = {
-                                            Text(
-                                                text = info.replyer.nameShow ?: info.replyer.name
-                                                ?: ""
-                                            )
+                                            val displayName = replyer.nameShow?.ifEmpty { null } ?: replyer.name?.ifEmpty { null } ?: ""
+                                            Text(text = displayName)
                                         },
                                         onClick = {
-                                            navigator.navigate(UserProfilePageDestination(info.replyer.id!!.toLong()))
+                                            replyer.id?.toLongOrNull()?.let { uid ->
+                                                navigator.navigate(UserProfilePageDestination(uid))
+                                            }
                                         },
                                         desc = {
-                                            Text(
-                                                text = DateTimeUtils.getRelativeTimeString(
-                                                    LocalContext.current,
-                                                    info.time!!
+                                            val timeStr = info.getEffectiveTime()
+                                            if (!timeStr.isNullOrBlank()) {
+                                                Text(
+                                                    text = DateTimeUtils.getRelativeTimeString(
+                                                        LocalContext.current,
+                                                        timeStr
+                                                    )
                                                 )
-                                            )
+                                            }
                                         },
                                     ) {}
                                 }
-                                EmoticonText(text = info.content ?: "")
-                                val quoteText = if (type == NotificationsType.ReplyMe) {
-                                    if ("1" == info.isFloor) {
-                                        info.quoteContent
+                                val mainText = if (type == NotificationsType.AgreeMe && info.content.isNullOrBlank()) {
+                                    val pid = info.getEffectivePostId()
+                                    val tid = info.getEffectiveThreadId()
+                                    if (info.isFloor == "1") {
+                                        "赞了你的楼中楼"
+                                    } else if (pid != null && pid != "0" && pid != tid) {
+                                        "赞了你的回复"
+                                    } else if (!info.quoteContent.isNullOrBlank() || info.postInfo != null) {
+                                        "赞了你的回复"
                                     } else {
-                                        stringResource(
-                                            id = R.string.text_message_list_item_reply_my_thread,
-                                            info.title ?: ""
-                                        )
+                                        "赞了你的贴子"
                                     }
                                 } else {
-                                    info.title
+                                    info.content ?: ""
+                                }
+                                if (mainText.isNotBlank()) {
+                                    EmoticonText(text = mainText)
+                                }
+                                val quoteText = when (type) {
+                                    NotificationsType.ReplyMe -> {
+                                        if ("1" == info.isFloor) {
+                                            info.quoteContent
+                                        } else {
+                                            stringResource(
+                                                id = R.string.text_message_list_item_reply_my_thread,
+                                                info.title ?: ""
+                                            )
+                                        }
+                                    }
+                                    NotificationsType.AtMe -> info.title
+                                    NotificationsType.AgreeMe -> info.getEffectiveQuoteContent()
                                 }
                                 if (quoteText != null) {
                                     EmoticonText(
@@ -193,22 +227,26 @@ fun NotificationsListPage(
                                             .fillMaxWidth()
                                             .clip(RoundedCornerShape(6.dp))
                                             .debounceClickable(onClick =  {
-                                                if (info.isFloor == "1") {
-                                                    navigator.navigate(
-                                                        SubPostsPageDestination(
-                                                            threadId = info.threadId!!.toLong(),
-                                                            postId = if (info.quotePid != null) info.quotePid.toLong() else 0,
-                                                            subPostId = info.postId!!.toLong(),
-                                                            loadFromSubPost = true
+                                                val tid = info.getEffectiveThreadId()?.toLongOrNull()
+                                                val pid = info.getEffectivePostId()?.toLongOrNull()
+                                                if (tid != null && tid > 0) {
+                                                    if (info.isFloor == "1" && pid != null && pid > 0) {
+                                                        navigator.navigate(
+                                                            SubPostsPageDestination(
+                                                                threadId = tid,
+                                                                postId = info.quotePid?.toLongOrNull() ?: 0,
+                                                                subPostId = pid,
+                                                                loadFromSubPost = true
+                                                            )
                                                         )
-                                                    )
-                                                } else {
-                                                    navigator.navigate(
-                                                        ThreadPageDestination(
-                                                            threadId = info.threadId!!.toLong(),
-                                                            postId = info.postId!!.toLong()
+                                                    } else {
+                                                        navigator.navigate(
+                                                            ThreadPageDestination(
+                                                                threadId = tid,
+                                                                postId = pid ?: 0
+                                                            )
                                                         )
-                                                    )
+                                                    }
                                                 }
                                             })
                                             .background(

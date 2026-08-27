@@ -52,6 +52,9 @@ fun NotificationsPage(
         },
         stringResource(id = R.string.title_at_me) to @Composable {
             NotificationsListPage(type = NotificationsType.AtMe)
+        },
+        stringResource(id = R.string.title_agree_me) to @Composable {
+            NotificationsListPage(type = NotificationsType.AgreeMe)
         }
     )
     val pagerState = rememberPagerState(
@@ -124,6 +127,9 @@ fun NotificationsPage(
         },
         stringResource(id = R.string.title_at_me) to @Composable {
             NotificationsListPage(type = NotificationsType.AtMe)
+        },
+        stringResource(id = R.string.title_agree_me) to @Composable {
+            NotificationsListPage(type = NotificationsType.AgreeMe)
         }
     )
     val pagerState = rememberPagerState(

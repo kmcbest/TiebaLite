@@ -113,9 +113,11 @@ object BlockManager {
             author_id.takeIf { it != 0L } ?: (author?.id ?: -1),
             author?.name?.ifEmpty { author.nameShow })
 
-    fun MessageListBean.MessageInfoBean.shouldBlock(): Boolean =
-        shouldBlock(content.orEmpty()) || shouldBlock(
-            this.replyer?.id?.toLongOrNull() ?: -1,
-            this.replyer?.name?.ifEmpty { this.replyer.nameShow }
+    fun MessageListBean.MessageInfoBean.shouldBlock(): Boolean {
+        val rep = this.getEffectiveReplyer()
+        return shouldBlock(content.orEmpty()) || shouldBlock(
+            rep?.id?.toLongOrNull() ?: -1,
+            rep?.name?.ifEmpty { rep.nameShow }
         )
+    }
 }

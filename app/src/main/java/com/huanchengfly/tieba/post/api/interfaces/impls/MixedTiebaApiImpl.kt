@@ -570,6 +570,12 @@ object MixedTiebaApiImpl : ITiebaApi {
     override fun agreeMe(page: Int): Call<MessageListBean> =
         RetrofitTiebaApi.NEW_TIEBA_API.agreeMe(page)
 
+    override fun agreeMeAsync(page: Int): Deferred<ApiResult<MessageListBean>> =
+        RetrofitTiebaApi.NEW_TIEBA_API.agreeMeAsync(page)
+
+    override fun agreeMeFlow(page: Int): Flow<MessageListBean> =
+        RetrofitTiebaApi.NEW_TIEBA_API.agreeMeFlow(page)
+
     override fun threadContent(
         threadId: String, page: Int, seeLz: Boolean, reverse: Boolean
     ): Call<ThreadContentBean> = RetrofitTiebaApi.OFFICIAL_TIEBA_API.threadContent(

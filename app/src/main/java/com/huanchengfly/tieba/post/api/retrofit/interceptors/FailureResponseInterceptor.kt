@@ -22,9 +22,17 @@ object FailureResponseInterceptor : Interceptor {
             contentType.charset(Charsets.UTF_8)!!
         }
 
-        val inputStreamReader = body.source().also {
+        val sourceBuffer = body.source().also {
             it.request(Long.MAX_VALUE)
-        }.buffer.clone().inputStream().reader(charset)
+        }.buffer.clone()
+
+        val requestUrl = chain.request().url.toString()
+        if (requestUrl.contains("agreeme")) {
+            val rawJson = sourceBuffer.clone().readString(charset)
+            com.huanchengfly.tieba.post.utils.AgreeDebugUtil.recordAgreeJson(rawJson)
+        }
+
+        val inputStreamReader = sourceBuffer.inputStream().reader(charset)
 
         val commonResponse = inputStreamReader.use {
             runCatching {
