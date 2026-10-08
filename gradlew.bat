@@ -13,6 +13,10 @@ if "%DIRNAME%" == "" set DIRNAME=.
 set APP_BASE_NAME=%~n0
 set APP_HOME=%DIRNAME%
 
+if not defined GRADLE_USER_HOME set GRADLE_USER_HOME=D:\Android\.gradle
+if not defined ANDROID_HOME set ANDROID_HOME=D:\Android\Sdk
+if not defined ANDROID_SDK_ROOT set ANDROID_SDK_ROOT=D:\Android\Sdk
+
 @rem Add default JVM options here. You can also use JAVA_OPTS and GRADLE_OPTS to pass JVM options to this script.
 set DEFAULT_JVM_OPTS=
 

@@ -105,8 +105,10 @@ object AddPostRepository {
             bsk = "",
             referer = "https://tieba.baidu.com/p/$threadId?lp=5028&mo_device=1&is_jingpost=0&pn=1&"
         )
+        android.util.Log.i("AddPostRepository", "webReply request: forumName=$forumName, threadId=$threadId, imgInfo=$webImgInfo, postId=$postId, subPostId=$subPostId")
         val response = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { call.execute() }
         val body = response.body() ?: throw com.huanchengfly.tieba.post.api.retrofit.exception.TiebaUnknownException
+        android.util.Log.i("AddPostRepository", "webReply response: code=${body.errorCode}, msg=${body.errorMsg}, data=${body.data}")
         if (body.errorCode != 0) {
             throw com.huanchengfly.tieba.post.api.retrofit.exception.TiebaLocalException(body.errorCode, body.errorMsg ?: "回帖失败")
         }

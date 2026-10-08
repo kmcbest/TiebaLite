@@ -57,7 +57,7 @@ android {
     buildToolsVersion = "36.0.0"
     compileSdk = 36
     defaultConfig {
-        applicationId = "com.huanchengfly.tieba.post"
+        applicationId = "com.kmc.tieba.post"
         minSdk = 23
         //noinspection OldTargetApi
         targetSdk = 36
@@ -76,12 +76,24 @@ android {
     }
     signingConfigs {
         getByName("debug") {
-            val debugKeystoreFile = file("debug.keystore")
-            if (debugKeystoreFile.exists()) {
-                storeFile = debugKeystoreFile
-                storePassword = "android"
-                keyAlias = "androiddebugkey"
-                keyPassword = "android"
+            val keystoreFile = keystoreProperties.getProperty("keystore.file", "")
+            if (keystoreFile.isNotBlank()) {
+                storeFile = file(File(rootDir, keystoreFile))
+                storePassword = keystoreProperties.getProperty("keystore.password")
+                keyAlias = keystoreProperties.getProperty("keystore.key.alias")
+                keyPassword = keystoreProperties.getProperty("keystore.key.password")
+                enableV1Signing = true
+                enableV2Signing = true
+                enableV3Signing = true
+                enableV4Signing = true
+            } else {
+                val debugKeystoreFile = file("debug.keystore")
+                if (debugKeystoreFile.exists()) {
+                    storeFile = debugKeystoreFile
+                    storePassword = "android"
+                    keyAlias = "androiddebugkey"
+                    keyPassword = "android"
+                }
             }
         }
         val keystoreFile = keystoreProperties.getProperty("keystore.file", "")

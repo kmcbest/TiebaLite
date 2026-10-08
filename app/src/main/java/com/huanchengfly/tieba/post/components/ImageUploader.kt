@@ -148,6 +148,8 @@ class ImageUploader(
             return uploadSinglePictureWeb(filePath, isOriginImage)
         }
 
+        val effectiveNoWatermark = isOriginImage || picWatermarkType == PIC_WATER_TYPE_NO
+
         val requestBodies = (0 until totalChunkNum).map { chunk ->
             val isFinish = chunk == totalChunkNum - 1
             val curChunkSize = if (isFinish) {
@@ -175,20 +177,24 @@ class ImageUploader(
                 addFormDataPart("isFinish", isFinish.booleanToString())
                 addFormDataPart("is_bjh", "0")
                 addFormDataPart("resourceId", "$fileMd5$chunkSize")
-                addFormDataPart("saveOrigin", isOriginImage.booleanToString())
+                addFormDataPart("saveOrigin", effectiveNoWatermark.booleanToString())
                 addFormDataPart("size", "$fileLength")
                 addFormDataPart("width", "$width")
                 addFormDataPart("chunk", "file", chunkBytes.toRequestBody())
 
-                when (picWatermarkType) {
-                    PIC_WATER_TYPE_USER_NAME -> {
-                        addFormDataPart("pic_water_type", "0")
-                    }
-                    else -> {
-                        addFormDataPart("pic_water_type", "2")
-                        if (forumName.isNotEmpty()) {
-                            addFormDataPart("forum_name", forumName)
-                            addFormDataPart("small_flow_fname", forumName)
+                if (effectiveNoWatermark) {
+                    addFormDataPart("pic_water_type", "-1")
+                } else {
+                    when (picWatermarkType) {
+                        PIC_WATER_TYPE_USER_NAME -> {
+                            addFormDataPart("pic_water_type", "0")
+                        }
+                        else -> {
+                            addFormDataPart("pic_water_type", "2")
+                            if (forumName.isNotEmpty()) {
+                                addFormDataPart("forum_name", forumName)
+                                addFormDataPart("small_flow_fname", forumName)
+                            }
                         }
                     }
                 }

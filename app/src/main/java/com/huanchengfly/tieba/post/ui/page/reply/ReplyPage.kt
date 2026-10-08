@@ -323,7 +323,7 @@ internal fun ReplyPageContent(
             waitUploadSuccessToSend = false
             val hasWebImages = it.resultList.any { image -> image.picId == "WEB_UPLOAD" }
             if (hasWebImages) {
-                val webImgInfo = it.resultList.mapNotNull { image -> image.resourceId }.joinToString(",")
+                val webImgInfo = it.resultList.mapNotNull { image -> image.resourceId }.joinToString("|")
                 viewModel.send(
                     ReplyUiIntent.Send(
                         content = getText(),
